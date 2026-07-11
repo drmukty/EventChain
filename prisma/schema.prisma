@@ -1,0 +1,343 @@
+// EventChain — Prisma schema
+// Swap `provider` datasource url via DATABASE_URL env var only (Supabase Postgres in production).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────
+// ENUMS
+// ────────────────────────────────
+
+enum GlobalRole {
+  ADMIN
+  ORGANIZER
+  ATTENDEE
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  VOLUNTEER
+  QR_SCANNER
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  TOKEN_GATED
+  NFT_HOLDER
+}
+
+enum EventStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  SOLD_OUT
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WAITLISTED
+  CANCELLED
+}
+
+enum NotificationType {
+  APPLICATION_SUBMITTED
+  APPLICATION_APPROVED
+  APPLICATION_REJECTED
+  REGISTRATION_CLOSED
+  QR_GENERATED
+  NFT_MINTED
+  CERTIFICATE_READY
+  WAITLIST_PROMOTED
+}
+
+// ────────────────────────────────
+// USERS & AUTH
+// ────────────────────────────────
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  emailVerified DateTime?
+  passwordHash  String? // null when user signed up via Google
+  image         String?
+  role          GlobalRole @default(ATTENDEE)
+  walletAddress String?    @unique
+  bio           String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+
+  organizedEvents Event[]           @relation("OrganizerEvents")
+  teamMemberships TeamMember[]
+  applications    Application[]
+  checkIns        CheckIn[]
+  nfts            NFT[]
+  certificates    Certificate[]
+  notifications   Notification[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ────────────────────────────────
+// EVENTS
+// ────────────────────────────────
+
+model Event {
+  id                   String          @id @default(cuid())
+  title                String
+  slug                 String          @unique
+  description          String          @db.Text
+  category             String
+  bannerUrl            String?
+  logoUrl              String?
+  venue                String
+  address              String?
+  latitude             Float?
+  longitude            Float?
+  startsAt             DateTime
+  endsAt               DateTime
+  registrationDeadline DateTime
+  capacity             Int
+  visibility           EventVisibility @default(PUBLIC)
+  status               EventStatus     @default(DRAFT)
+  invitedEmails        String[]        @default([]) // for PRIVATE events: allowlisted emails who may view/apply
+  tokenGateAddress     String? // required contract address for TOKEN_GATED / NFT_HOLDER events
+  tokenGateMinBalance  Int?            @default(1)
+
+  organizerId String
+  organizer   User   @relation("OrganizerEvents", fields: [organizerId], references: [id])
+
+  speakers Speaker[]
+  sponsors Sponsor[]
+  agenda   AgendaItem[]
+
+  teamMembers  TeamMember[]
+  applications Application[]
+  checkIns     CheckIn[]
+  nfts         NFT[]
+  certificates Certificate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([organizerId])
+}
+
+model Speaker {
+  id      String  @id @default(cuid())
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name    String
+  title   String?
+  photoUrl String?
+  bio     String?
+}
+
+model Sponsor {
+  id      String  @id @default(cuid())
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name    String
+  logoUrl String?
+  tier    String? // e.g. "Platinum", "Gold", "Community"
+  url     String?
+}
+
+model AgendaItem {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  startTime DateTime
+  endTime   DateTime
+  title     String
+  speaker   String?
+}
+
+// ────────────────────────────────
+// TEAM MANAGEMENT (per-event roles)
+// ────────────────────────────────
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  eventId  String
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  role     TeamRole @default(VOLUNTEER)
+  invitedAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+}
+
+// ────────────────────────────────
+// APPLICATIONS & WAITLIST
+// ────────────────────────────────
+
+model Application {
+  id        String            @id @default(cuid())
+  eventId   String
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  status    ApplicationStatus @default(PENDING)
+  answers   Json? // custom application questions/answers
+  waitlistPosition Int?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  qrCode   QRCode?
+  checkIn  CheckIn?
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+}
+
+// ────────────────────────────────
+// QR CODES
+// ────────────────────────────────
+
+model QRCode {
+  id            String      @id @default(cuid())
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  token         String      @unique // opaque random id embedded in the QR payload
+  payloadHash   String // HMAC-SHA256 of the signed payload, for tamper detection
+  isUsed        Boolean     @default(false)
+  usedAt        DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime    @default(now())
+
+  @@index([token])
+}
+
+// ────────────────────────────────
+// CHECK-IN
+// ────────────────────────────────
+
+model CheckIn {
+  id            String      @id @default(cuid())
+  eventId       String
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  scannedById   String? // team member who performed the scan
+  checkedInAt   DateTime    @default(now())
+
+  nft NFT?
+
+  @@index([eventId])
+}
+
+// ────────────────────────────────
+// NFTS (on-chain POAPs) + off-chain badges fallback
+// ────────────────────────────────
+
+model NFT {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  checkInId     String   @unique
+  checkIn       CheckIn  @relation(fields: [checkInId], references: [id])
+  isOnChain     Boolean  @default(false) // false => off-chain badge issued (no wallet connected)
+  tokenId       String?
+  txHash        String?
+  contractAddr  String?
+  chainId       Int?
+  mintedAt      DateTime @default(now())
+  metadataUrl   String?
+
+  @@index([userId])
+}
+
+// ────────────────────────────────
+// CERTIFICATES
+// ────────────────────────────────
+
+model Certificate {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  pdfUrl    String // Supabase Storage URL
+  issuedAt  DateTime @default(now())
+
+  @@unique([eventId, userId])
+}
+
+// ────────────────────────────────
+// NOTIFICATIONS
+// ────────────────────────────────
+
+model Notification {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime          @default(now())
+
+  @@index([userId, readAt])
+}
