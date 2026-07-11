@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Clash Display", "General Sans", ui-sans-serif;
+  --font-body: "General Sans", ui-sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace;
+
+  --bg: 250 251 255;
+  --bg-elevated: 255 255 255;
+  --fg: 8 10 18;
+  --fg-muted: 90 96 115;
+  --border: 226 229 240;
+}
+
+.dark {
+  --bg: 5 7 13;
+  --bg-elevated: 11 14 23;
+  --fg: 238 241 247;
+  --fg-muted: 148 156 178;
+  --border: 28 33 53;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gradient-text {
+  background: linear-gradient(120deg, #4f9bff 0%, #0052ff 45%, #7c5cff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hex-badge {
+  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
+}
+
+::selection {
+  background: rgba(0, 82, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

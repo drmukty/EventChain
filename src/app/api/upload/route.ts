@@ -1,0 +1,43 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase";
+
+const MAX_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+// POST /api/upload — multipart/form-data with a single "file" field and a
+// "folder" field (e.g. "banners" or "logos"). Returns the public URL.
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !["ORGANIZER", "ADMIN"].includes((session.user as any).role)) {
+    return NextResponse.json({ error: "Only organizers can upload event media" }, { status: 403 });
+  }
+
+  const formData = await req.formData();
+  const file = formData.get("file");
+  const folder = (formData.get("folder") as string) || "misc";
+
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: "No file provided" }, { status: 400 });
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: "Only PNG, JPEG, or WEBP images are allowed" }, { status: 400 });
+  }
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: "File must be under 5MB" }, { status: 400 });
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const ext = file.type.split("/")[1];
+  const path = `${folder}/${(session.user as any).id}-${Date.now()}.${ext}`;
+
+  const { error } = await supabaseAdmin.storage
+    .from("eventchain")
+    .upload(path, bytes, { contentType: file.type, upsert: true });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const { data } = supabaseAdmin.storage.from("eventchain").getPublicUrl(path);
+  return NextResponse.json({ url: data.publicUrl });
+}
