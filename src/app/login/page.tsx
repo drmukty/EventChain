@@ -79,6 +79,15 @@ function LoginForm() {
         >
           Continue with Google
         </button>
+        <p className="mt-6 text-center text-sm text-fg-muted">
+  Don't have an account?{" "}
+  <a
+    href="/register"
+    className="font-medium text-base-500 hover:underline"
+  >
+    Sign Up
+  </a>
+</p>
       </motion.div>
     </div>
   );
