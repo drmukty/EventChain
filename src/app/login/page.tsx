@@ -1,14 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  // When middleware redirects an unauthenticated visitor to /login, it
+  // appends ?callbackUrl=/original/path so they land back where they were
+  // headed after signing in, instead of always being sent to /dashboard.
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   async function handleCredentialsLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -16,7 +30,7 @@ export default function LoginPage() {
     const res = await signIn("credentials", { email, password, redirect: false });
     setLoading(false);
     if (res?.error) toast.error("Invalid email or password");
-    else window.location.href = "/dashboard";
+    else window.location.href = callbackUrl;
   }
 
   return (
@@ -60,7 +74,7 @@ export default function LoginPage() {
         </div>
 
         <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+          onClick={() => signIn("google", { callbackUrl })}
           className="w-full rounded-xl border border-white/10 py-3 text-sm font-medium hover:bg-white/5"
         >
           Continue with Google

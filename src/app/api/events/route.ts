@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { EventVisibility } from "@prisma/client";
 
 const createEventSchema = z.object({
   title: z.string().min(3).max(120),
@@ -19,10 +18,10 @@ const createEventSchema = z.object({
   endsAt: z.string().datetime(),
   registrationDeadline: z.string().datetime(),
   capacity: z.number().int().positive(),
-  visibility: z.nativeEnum(EventVisibility).default("PUBLIC"),
-  tokenGateAddress: z.string().optional(),
-  tokenGateMinBalance: z.number().int().optional(),
-  invitedEmails: z.array(z.string().email()).optional(),
+  // Private / token-gated / NFT-holder events have been removed per spec —
+  // every event is public now. Visibility, invitedEmails, and token-gate
+  // fields are intentionally NOT accepted from the client anymore; any of
+  // those values sent by an old client are silently ignored below.
 });
 
 function slugify(title: string) {
@@ -95,6 +94,7 @@ export async function POST(req: Request) {
       endsAt: new Date(data.endsAt),
       registrationDeadline: new Date(data.registrationDeadline),
       status: "REGISTRATION_OPEN",
+      visibility: "PUBLIC",
       organizerId: (session.user as any).id,
       teamMembers: {
         create: { userId: (session.user as any).id, role: "OWNER" },

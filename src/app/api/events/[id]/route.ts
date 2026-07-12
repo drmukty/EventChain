@@ -1,9 +1,36 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
 import { checkEventAccess } from "@/lib/eventAccess";
+
+// Fields an organizer may edit. Notably excludes organizerId, visibility,
+// tokenGateAddress/tokenGateMinBalance/invitedEmails (private/token-gated
+// events are removed per spec — every event stays PUBLIC), slug, and id.
+// Previously PATCH applied the raw request body directly to
+// `prisma.event.update`, so any of those fields could be overwritten by
+// whoever could call the endpoint (which, since it only checked
+// OWNER/ADMIN team membership, is at least every organizer of the event).
+const updateEventSchema = z
+  .object({
+    title: z.string().min(3).max(120),
+    description: z.string().min(10),
+    category: z.string().min(2),
+    venue: z.string().min(2),
+    address: z.string().optional().nullable(),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable(),
+    bannerUrl: z.string().url().optional().nullable(),
+    logoUrl: z.string().url().optional().nullable(),
+    startsAt: z.string().datetime(),
+    endsAt: z.string().datetime(),
+    registrationDeadline: z.string().datetime(),
+    capacity: z.number().int().positive(),
+    status: z.enum(["DRAFT", "REGISTRATION_OPEN", "SOLD_OUT", "LIVE", "COMPLETED", "CANCELLED"]),
+  })
+  .partial();
 
 async function assertCanManage(eventId: string, userId: string, role: string) {
   if (role === "ADMIN") return true;
@@ -47,8 +74,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const canManage = await assertCanManage(params.id, (session.user as any).id, (session.user as any).role);
   if (!canManage) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await req.json();
-  const event = await prisma.event.update({ where: { id: params.id }, data: body });
+  const rawBody = await req.json();
+  const parsed = updateEventSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+  }
+  const body = parsed.data;
+  const data: Record<string, unknown> = { ...body };
+  if (body.startsAt) data.startsAt = new Date(body.startsAt);
+  if (body.endsAt) data.endsAt = new Date(body.endsAt);
+  if (body.registrationDeadline) data.registrationDeadline = new Date(body.registrationDeadline);
+
+  const event = await prisma.event.update({ where: { id: params.id }, data });
 
   const isClosingRegistration =
     body.status && ["SOLD_OUT", "LIVE", "COMPLETED", "CANCELLED"].includes(body.status);

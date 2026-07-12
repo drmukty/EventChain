@@ -10,10 +10,22 @@ import { NotificationBell } from "@/components/NotificationBell";
 export function Navbar() {
   const [isDark, setIsDark] = useState(true);
   const { data: session } = useSession();
+  const [isStaffAnywhere, setIsStaffAnywhere] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
   }, [isDark]);
+
+  useEffect(() => {
+    if (!session) {
+      setIsStaffAnywhere(false);
+      return;
+    }
+    fetch("/api/me/access")
+      .then((r) => r.json())
+      .then((d) => setIsStaffAnywhere(!!d.isStaffAnywhere))
+      .catch(() => setIsStaffAnywhere(false));
+  }, [session]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-ink-950/70 backdrop-blur-xl">
@@ -25,10 +37,18 @@ export function Navbar() {
 
         <nav className="hidden items-center gap-8 text-sm text-fg-muted md:flex">
           <Link href="/events" className="hover:text-white transition-colors">Browse Events</Link>
-          <Link href="/my-events" className="hover:text-white transition-colors">My Events</Link>
-          <Link href="/nft-gallery" className="hover:text-white transition-colors">NFT Gallery</Link>
-          <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
-          <Link href="/scan" className="hover:text-white transition-colors">Scan</Link>
+          {session && (
+            <Link href="/my-events" className="hover:text-white transition-colors">My Events</Link>
+          )}
+          {session && (
+            <Link href="/nft-gallery" className="hover:text-white transition-colors">NFT Gallery</Link>
+          )}
+          {session && (
+            <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
+          )}
+          {isStaffAnywhere && (
+            <Link href="/scan" className="hover:text-white transition-colors">Scan</Link>
+          )}
           <Link href="/guide" className="hover:text-white transition-colors">Guide</Link>
           <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
         </nav>

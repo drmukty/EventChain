@@ -29,9 +29,7 @@ export default function NewEventPage() {
     endsAt: "",
     registrationDeadline: "",
     capacity: 100,
-    visibility: "PUBLIC",
   });
-  const [invitedEmailsRaw, setInvitedEmailsRaw] = useState("");
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -62,13 +60,6 @@ export default function NewEventPage() {
           startsAt: new Date(form.startsAt).toISOString(),
           endsAt: new Date(form.endsAt).toISOString(),
           registrationDeadline: new Date(form.registrationDeadline).toISOString(),
-          invitedEmails:
-            form.visibility === "PRIVATE"
-              ? invitedEmailsRaw
-                  .split(/[,\n]/)
-                  .map((e) => e.trim())
-                  .filter(Boolean)
-              : undefined,
         }),
       });
       const data = await res.json();
@@ -126,28 +117,10 @@ export default function NewEventPage() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <input required type="number" min={1} placeholder="Capacity" value={form.capacity} onChange={(e) => update("capacity", Number(e.target.value) as any)} className={inputClass} />
-          <select value={form.visibility} onChange={(e) => update("visibility", e.target.value)} className={inputClass}>
-            <option value="PUBLIC">Public</option>
-            <option value="PRIVATE">Private</option>
-            <option value="TOKEN_GATED">Token-gated</option>
-            <option value="NFT_HOLDER">NFT holder only</option>
-          </select>
-        </div>
-
-        {form.visibility === "PRIVATE" && (
-          <div>
-            <label className="mb-1 block text-xs text-fg-muted">
-              Invited emails (comma or newline separated) — only these people can view or apply
-            </label>
-            <textarea
-              rows={3}
-              placeholder="ada@example.com, olu@example.com"
-              value={invitedEmailsRaw}
-              onChange={(e) => setInvitedEmailsRaw(e.target.value)}
-              className={inputClass}
-            />
+          <div className="flex items-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-fg-muted">
+            Visibility: Public (all events are public)
           </div>
-        )}
+        </div>
 
         <button type="submit" disabled={submitting} className="w-full rounded-xl bg-base-500 py-3 font-medium text-white shadow-glow disabled:opacity-60">
           {submitting ? "Creating…" : "Create event"}

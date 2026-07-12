@@ -4,7 +4,16 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const schema = z.object({ walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Not a valid EVM address") });
+const schema = z.object({
+  walletAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Not a valid EVM address")
+    // Ethereum addresses are case-insensitive (mixed-case is just an EIP-55
+    // checksum encoding of the same address). Without normalizing, the same
+    // real wallet could be linked to two different accounts by submitting
+    // it in different casing, bypassing the uniqueness check below.
+    .transform((addr) => addr.toLowerCase()),
+});
 
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions);

@@ -10,12 +10,53 @@ export async function GET() {
   const userId = (session.user as any).id;
   const isAdmin = (session.user as any).role === "ADMIN";
 
-  // Events this user organizes or is on the team for (all events, for admins).
-  const eventIds = isAdmin
+  // Split events into ones this user *organizes* (OWNER/ADMIN team role)
+  // vs. ones they're only a VOLUNTEER/QR_SCANNER on. Full applicant
+  // analytics (pending/approved/rejected/registrations) are an organizer
+  // concern; volunteers should only see check-in/scanner numbers for their
+  // assigned event, per spec section 10. Previously every TeamMember role
+  // got identical full-analytics data regardless of role.
+  const memberships = isAdmin
+    ? []
+    : await prisma.teamMember.findMany({ where: { userId }, select: { eventId: true, role: true } });
+
+  const organizerEventIds = isAdmin
     ? (await prisma.event.findMany({ select: { id: true } })).map((e) => e.id)
-    : (
-        await prisma.teamMember.findMany({ where: { userId }, select: { eventId: true } })
-      ).map((t) => t.eventId);
+    : memberships.filter((m) => ["OWNER", "ADMIN"].includes(m.role)).map((m) => m.eventId);
+
+  const volunteerOnlyEventIds = isAdmin
+    ? []
+    : memberships
+        .filter((m) => ["VOLUNTEER", "QR_SCANNER"].includes(m.role))
+        .map((m) => m.eventId)
+        .filter((id) => !organizerEventIds.includes(id));
+
+  const eventIds = organizerEventIds;
+
+  let volunteerStats: { eventId: string; event: string; checkedIn: number; approved: number }[] = [];
+  if (volunteerOnlyEventIds.length > 0) {
+    const volunteerEvents = await prisma.event.findMany({
+      where: { id: { in: volunteerOnlyEventIds } },
+      select: {
+        id: true,
+        title: true,
+        _count: { select: { checkIns: true } },
+      },
+    });
+    volunteerStats = await Promise.all(
+      volunteerEvents.map(async (e) => {
+        const approvedForEvent = await prisma.application.count({
+          where: { eventId: e.id, status: "APPROVED" },
+        });
+        return {
+          eventId: e.id,
+          event: e.title,
+          checkedIn: e._count.checkIns,
+          approved: approvedForEvent,
+        };
+      })
+    );
+  }
 
   if (eventIds.length === 0) {
     return NextResponse.json({
@@ -30,6 +71,7 @@ export async function GET() {
         noShows: 0,
       },
       perEvent: [],
+      volunteerStats,
     });
   }
 
@@ -80,5 +122,6 @@ export async function GET() {
   return NextResponse.json({
     stats: { totalEvents, registrations, pending, approved, rejected, checkedIn, nftsMinted, noShows },
     perEvent,
+    volunteerStats,
   });
 }

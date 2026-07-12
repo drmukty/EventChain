@@ -21,7 +21,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     where: { eventId_userId: { eventId: application.eventId, userId: (session.user as any).id } },
   });
   const isAdmin = (session.user as any).role === "ADMIN";
-  if (!isAdmin && !membership) {
+  // Same restriction as approve — organizer-only, not any team member.
+  if (!isAdmin && !(membership && ["OWNER", "ADMIN"].includes(membership.role))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Hexagon, ExternalLink, ShieldCheck } from "lucide-react";
+import toast from "react-hot-toast";
+import { useSession } from "next-auth/react";
+import { Hexagon, ExternalLink, ShieldCheck, RefreshCw } from "lucide-react";
 
 type NFT = {
   id: string;
@@ -15,15 +17,39 @@ type NFT = {
 };
 
 export default function NftGalleryPage() {
+  const { data: session } = useSession();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
     fetch("/api/me/nfts")
       .then((r) => r.json())
       .then((d) => setNfts(d.nfts ?? []))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(load, []);
+
+  async function retryMint(nftId: string) {
+    setRetrying(nftId);
+    try {
+      const res = await fetch("/api/nft/mint", {
+        method: "POST",
+        body: JSON.stringify({ nftId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Minting failed");
+      toast.success("Minted on-chain!");
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setRetrying(null);
+    }
+  }
+
+  const hasWallet = !!(session?.user as any)?.walletAddress;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-16">
@@ -76,8 +102,17 @@ export default function NftGalleryPage() {
                 >
                   View on Base Explorer <ExternalLink size={12} />
                 </a>
+              ) : hasWallet ? (
+                <button
+                  onClick={() => retryMint(nft.id)}
+                  disabled={retrying === nft.id}
+                  className="mt-4 flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/5 disabled:opacity-60"
+                >
+                  <RefreshCw size={12} className={retrying === nft.id ? "animate-spin" : ""} />
+                  {retrying === nft.id ? "Minting…" : "Mint on-chain"}
+                </button>
               ) : (
-                <p className="mt-4 text-xs text-fg-muted">Off-chain badge — connect a wallet next time for an on-chain POAP.</p>
+                <p className="mt-4 text-xs text-fg-muted">Off-chain badge — connect a wallet to mint this on-chain.</p>
               )}
             </div>
           </motion.div>

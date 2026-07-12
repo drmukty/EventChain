@@ -57,10 +57,17 @@ export const authOptions: NextAuthOptions = {
         token.id = (user as any).id;
         token.role = (user as any).role;
       }
-      // Keep role fresh in case an admin changes it mid-session.
+      // Keep role and walletAddress fresh in case an admin changes the role,
+      // or the user links/changes their wallet mid-session — without this,
+      // session.user.walletAddress would stay stale (or undefined) until
+      // the user logs out and back in, which broke the "already connected"
+      // wallet indicator and any client code gating on it.
       if (token.id) {
         const dbUser = await prisma.user.findUnique({ where: { id: token.id as string } });
-        if (dbUser) token.role = dbUser.role;
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.walletAddress = dbUser.walletAddress;
+        }
       }
       return token;
     },
@@ -68,6 +75,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).walletAddress = token.walletAddress ?? null;
       }
       return session;
     },

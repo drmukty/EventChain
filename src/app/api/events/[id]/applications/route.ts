@@ -14,7 +14,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const membership = await prisma.teamMember.findUnique({
       where: { eventId_userId: { eventId, userId: (session.user as any).id } },
     });
-    if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Reviewing applicants is an organizer function, not a volunteer one.
+    if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const { searchParams } = new URL(req.url);

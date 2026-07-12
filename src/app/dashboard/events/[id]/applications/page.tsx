@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { Check, X } from "lucide-react";
+import { Check, X, UserPlus } from "lucide-react";
 
 export default function EventApplicationsPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +28,17 @@ export default function EventApplicationsPage() {
     if (!res.ok) return toast.error(data.error);
     toast.success(action === "approve" ? "Approved — QR sent" : "Rejected");
     load();
+  }
+
+  async function assignVolunteer(userId: string) {
+    const res = await fetch(`/api/events/${id}/team`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, role: "VOLUNTEER" }),
+    });
+    const data = await res.json();
+    if (!res.ok) return toast.error(data.error ?? "Could not assign volunteer");
+    toast.success("Assigned as Volunteer for this event");
   }
 
   return (
@@ -75,6 +86,14 @@ export default function EventApplicationsPage() {
                   <X size={14} /> Reject
                 </button>
               </div>
+            )}
+            {app.status === "APPROVED" && (
+              <button
+                onClick={() => assignVolunteer(app.userId ?? app.user.id)}
+                className="flex items-center gap-1 rounded-full bg-violet-500/15 px-4 py-2 text-xs font-medium text-violet-400 hover:bg-violet-500/25"
+              >
+                <UserPlus size={14} /> Assign as Volunteer
+              </button>
             )}
           </motion.div>
         ))}

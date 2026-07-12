@@ -5,6 +5,12 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+// The client previously supplied `folder` as a free-text string that was
+// concatenated directly into the storage path. That's client-controlled
+// input feeding a path — even though Supabase Storage doesn't expose a
+// traditional filesystem, there's no reason to accept an arbitrary string
+// here. Restrict to a known allowlist instead.
+const ALLOWED_FOLDERS = ["banners", "logos", "misc"];
 
 // POST /api/upload — multipart/form-data with a single "file" field and a
 // "folder" field (e.g. "banners" or "logos"). Returns the public URL.
@@ -16,7 +22,8 @@ export async function POST(req: Request) {
 
   const formData = await req.formData();
   const file = formData.get("file");
-  const folder = (formData.get("folder") as string) || "misc";
+  const requestedFolder = formData.get("folder") as string | null;
+  const folder = ALLOWED_FOLDERS.includes(requestedFolder ?? "") ? (requestedFolder as string) : "misc";
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });

@@ -19,7 +19,11 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     where: { eventId_userId: { eventId: application.eventId, userId: (session.user as any).id } },
   });
   const isAdmin = (session.user as any).role === "ADMIN";
-  if (!isAdmin && !membership) {
+  // Approving/rejecting applications is an organizer decision (spec section
+  // 4) — Volunteers and QR Scanners only get check-in scanning rights for
+  // their assigned event, not applicant review. Previously any TeamMember
+  // role (including VOLUNTEER/QR_SCANNER) could approve applications.
+  if (!isAdmin && !(membership && ["OWNER", "ADMIN"].includes(membership.role))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
