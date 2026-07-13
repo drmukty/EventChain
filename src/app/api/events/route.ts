@@ -74,10 +74,13 @@ export async function GET(req: Request) {
 // POST /api/events — organizer creates an event
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !["ORGANIZER", "ADMIN"].includes((session.user as any).role)) {
-    return NextResponse.json({ error: "Only organizers can create events" }, { status: 403 });
-  }
 
+if (!session?.user) {
+  return NextResponse.json(
+    { error: "Please login first." },
+    { status: 401 }
+  );
+}
   const body = await req.json();
   const parsed = createEventSchema.safeParse(body);
   if (!parsed.success) {
