@@ -22,30 +22,36 @@ export default function RegisterPage() {
 
     setLoading(true);
 
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        email,
-        password,
-      }),
-    });
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    setLoading(false);
+      if (!response.ok) {
+        console.error("Registration Error:", data);
+        alert(JSON.stringify(data, null, 2));
+        return;
+      }
 
-    if (!response.ok) {
-      alert(data.error || "Registration failed");
-      return;
+      alert("✅ Account created successfully!");
+
+      router.push("/login");
+    } catch (error) {
+      console.error("Fetch Error:", error);
+      alert("❌ Unable to connect to the server.");
+    } finally {
+      setLoading(false);
     }
-
-    alert("Account created successfully!");
-
-    router.push("/login");
   }
 
   return (
@@ -97,7 +103,7 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded bg-blue-600 p-3 text-white hover:bg-blue-700"
+          className="w-full rounded bg-blue-600 p-3 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "Creating Account..." : "Sign Up"}
         </button>
