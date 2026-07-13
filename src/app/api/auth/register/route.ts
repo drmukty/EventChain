@@ -10,27 +10,81 @@ const registerSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const parsed = registerSchema.safeParse(body);
+  try {
+    const body = await req.json();
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+    const parsed = registerSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: parsed.error.flatten(),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { name, email, password } = parsed.data;
+    const normalizedEmail = email.toLowerCase();
+
+    console.log("Checking existing user...");
+
+    const existing = await prisma.user.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "An account with this email already exists",
+        },
+        { status: 409 }
+      );
+    }
+
+    console.log("Hashing password...");
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    console.log("Creating user...");
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        passwordHash,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    console.log("User created successfully.");
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Account created successfully",
+        user,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("REGISTER API ERROR:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
-
-  const { name, email, password } = parsed.data;
-  const normalizedEmail = email.toLowerCase();
-
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (existing) {
-    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const user = await prisma.user.create({
-    data: { name, email: normalizedEmail, passwordHash },
-    select: { id: true, name: true, email: true, role: true },
-  });
-
-  return NextResponse.json({ user }, { status: 201 });
 }
