@@ -57,7 +57,15 @@ export default function EventDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
-      <div className="h-56 w-full rounded-3xl bg-gradient-to-br from-base-500/30 to-violet-500/20" />
+      {event.bannerUrl ? (
+  <img
+    src={event.bannerUrl}
+    alt={event.title}
+    className="h-56 w-full rounded-3xl object-cover"
+  />
+) : (
+  <div className="h-56 w-full rounded-3xl bg-gradient-to-br from-base-500/30 to-violet-500/20" />
+)}
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
         <span className="text-xs font-medium uppercase tracking-wide text-base-400">{event.category}</span>
