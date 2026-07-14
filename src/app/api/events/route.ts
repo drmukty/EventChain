@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
@@ -49,7 +50,7 @@ const mine = searchParams.get("mine");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-const where =
+const where: Prisma.EventWhereInput =
   mine === "true" && session?.user
     ? {
         organizerId: (session.user as any).id,
