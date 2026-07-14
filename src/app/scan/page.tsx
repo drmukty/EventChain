@@ -79,19 +79,19 @@ export default function ScanPage() {
   }
 
   return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-start px-4 py-8 sm:py-16 sm:px-6">
-      <div className="w-full max-w-md">
-        <h1 className="font-display text-2xl sm:text-3xl font-semibold">Scan a check-in QR</h1>
-        <p className="mt-2 text-sm text-fg-muted">Point the camera at the attendee's QR code.</p>
+    <div className="w-screen min-h-screen flex flex-col items-center justify-start px-3 py-6 sm:px-4 sm:py-8 lg:px-6 lg:py-16 overflow-x-hidden">
+      <div className="w-full max-w-md flex flex-col items-center">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-semibold text-center">Scan a check-in QR</h1>
+        <p className="mt-2 text-xs sm:text-sm text-fg-muted text-center">Point the camera at the attendee's QR code.</p>
 
-        <div className="relative mt-6 sm:mt-8 w-full aspect-square overflow-hidden rounded-3xl border border-white/10">
+        <div className="relative mt-4 sm:mt-6 lg:mt-8 w-full aspect-square max-w-xs overflow-hidden rounded-3xl border border-white/10">
           <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
           <canvas ref={canvasRef} className="hidden" />
-          <div className="pointer-events-none absolute inset-4 sm:inset-8 rounded-2xl border-2 border-base-400/60" />
+          <div className="pointer-events-none absolute inset-2 sm:inset-4 lg:inset-8 rounded-2xl border-2 border-base-400/60" />
           <motion.div
             animate={{ y: [0, 200, 0] }}
             transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-            className="pointer-events-none absolute left-4 right-4 sm:left-8 sm:right-8 top-4 sm:top-8 h-0.5 bg-base-400 shadow-glow"
+            className="pointer-events-none absolute left-2 right-2 sm:left-4 sm:right-4 lg:left-8 lg:right-8 top-2 sm:top-4 lg:top-8 h-0.5 bg-base-400 shadow-glow"
           />
         </div>
 
@@ -102,18 +102,18 @@ export default function ScanPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`mt-4 sm:mt-6 flex items-center justify-center gap-2 rounded-2xl p-3 sm:p-4 text-sm font-medium ${
+              className={`mt-3 sm:mt-4 lg:mt-6 w-full flex items-center justify-center gap-2 rounded-2xl p-3 sm:p-4 text-xs sm:text-sm font-medium ${
                 scanState.status === "success" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"
               }`}
             >
-              {scanState.status === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+              {scanState.status === "success" ? <CheckCircle2 size={16} className="flex-shrink-0" /> : <XCircle size={16} className="flex-shrink-0" />}
               <span className="truncate">{scanState.status === "success" ? `Checked in: ${scanState.attendee}` : scanState.message}</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <p className="mt-4 sm:mt-6 flex items-center justify-center gap-2 text-xs text-fg-muted">
-          <ScanLine size={14} /> Scanning continuously — no need to tap anything.
+        <p className="mt-3 sm:mt-4 lg:mt-6 flex items-center justify-center gap-2 text-xs text-fg-muted text-center">
+          <ScanLine size={14} className="flex-shrink-0" /> Scanning continuously — no need to tap anything.
         </p>
       </div>
     </div>
