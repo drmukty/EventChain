@@ -37,7 +37,11 @@ function slugify(title: string) {
 
 // GET /api/events — public browse/search/filter
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
+  const session = await getServerSession(authOptions);
+
+const { searchParams } = new URL(req.url);
+
+const mine = searchParams.get("mine");
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
   const location = searchParams.get("location") ?? undefined;
@@ -45,30 +49,91 @@ export async function GET(req: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  const events = await prisma.event.findMany({
-    where: {
-      visibility: "PUBLIC",
-      status: { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] },
-      ...(q && {
-        OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
-        ],
-      }),
-      ...(category && { category: { equals: category, mode: "insensitive" } }),
-      ...(location && { venue: { contains: location, mode: "insensitive" } }),
-      ...(organizer && { organizer: { name: { contains: organizer, mode: "insensitive" } } }),
-      ...(from && { startsAt: { gte: new Date(from) } }),
-      ...(to && { startsAt: { lte: new Date(to) } }),
-    },
-    include: {
-      organizer: { select: { name: true, image: true } },
-      _count: { select: { applications: true } },
-    },
-    orderBy: { startsAt: "asc" },
-  });
+const where =
+  mine === "true" && session?.user
+    ? {
+        organizerId: (session.user as any).id,
+      }
+    : {
+        visibility: "PUBLIC",
+        status: {
+          in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"],
+        },
 
-  return NextResponse.json({ events });
+        ...(q && {
+          OR: [
+            {
+              title: {
+                contains: q,
+                mode: "insensitive",
+              },
+            },
+            {
+              description: {
+                contains: q,
+                mode: "insensitive",
+              },
+            },
+          ],
+        }),
+
+        ...(category && {
+          category: {
+            equals: category,
+            mode: "insensitive",
+          },
+        }),
+
+        ...(location && {
+          venue: {
+            contains: location,
+            mode: "insensitive",
+          },
+        }),
+
+        ...(organizer && {
+          organizer: {
+            name: {
+              contains: organizer,
+              mode: "insensitive",
+            },
+          },
+        }),
+
+        ...(from && {
+          startsAt: {
+            gte: new Date(from),
+          },
+        }),
+
+        ...(to && {
+          startsAt: {
+            lte: new Date(to),
+          },
+        }),
+      };
+
+const events = await prisma.event.findMany({
+  where,
+  include: {
+    organizer: {
+      select: {
+        name: true,
+        image: true,
+      },
+    },
+    _count: {
+      select: {
+        applications: true,
+      },
+    },
+  },
+  orderBy: {
+    startsAt: "desc",
+  },
+});
+
+return NextResponse.json({ events });
 }
 
 // POST /api/events — organizer creates an event
