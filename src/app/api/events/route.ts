@@ -66,13 +66,13 @@ const where: Prisma.EventWhereInput =
             {
               title: {
                 contains: q,
-                mode: "insensitive",
+                mode: Prisma.QueryMode.insensitive,
               },
             },
             {
               description: {
                 contains: q,
-                mode: "insensitive",
+                mode: Prisma.QueryMode.insensitive,
               },
             },
           ],
@@ -81,14 +81,14 @@ const where: Prisma.EventWhereInput =
         ...(category && {
           category: {
             equals: category,
-            mode: "insensitive",
+            mode: Prisma.QueryMode.insensitive,
           },
         }),
 
         ...(location && {
           venue: {
             contains: location,
-            mode: "insensitive",
+            mode: Prisma.QueryMode.insensitive,
           },
         }),
 
@@ -96,7 +96,7 @@ const where: Prisma.EventWhereInput =
           organizer: {
             name: {
               contains: organizer,
-              mode: "insensitive",
+              mode: Prisma.QueryMode.insensitive,
             },
           },
         }),
