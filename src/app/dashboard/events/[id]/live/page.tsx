@@ -24,20 +24,20 @@ export default function LiveCheckInPage() {
   }, [id]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-16">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-8 sm:py-16">
       <h1 className="font-display text-3xl font-semibold">Live check-in</h1>
       <p className="mt-2 text-fg-muted">Updates automatically every few seconds.</p>
 
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           ["Approved", stats.approved],
           ["Checked in", stats.checkedIn],
           ["No-shows", stats.noShows],
           ["NFTs minted", stats.nftsMinted],
         ].map(([label, value]) => (
-          <div key={label as string} className="glass-panel rounded-2xl p-4 text-center shadow-glass">
-            <p className="font-display text-2xl font-semibold">{value ?? 0}</p>
-            <p className="text-xs text-fg-muted">{label}</p>
+          <div key={label as string} className="glass-panel w-full rounded-2xl p-4 text-center shadow-glass">
+            <p className="font-display text-2xl font-semibold break-words">{value ?? 0}</p>
+            <p className="text-xs text-fg-muted break-words">{label}</p>
           </div>
         ))}
       </div>
@@ -49,22 +49,24 @@ export default function LiveCheckInPage() {
               key={c.id}
               initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
-              className="glass-panel flex items-center justify-between rounded-xl p-4"
+              className="glass-panel w-full flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl p-4"
             >
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                <div>
-                  <p className="text-sm font-medium">{c.user.name ?? c.user.email}</p>
+              <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium whitespace-normal break-words">{c.user.name ?? c.user.email}</p>
                   <p className="text-xs text-fg-muted">{new Date(c.checkedInAt).toLocaleTimeString()}</p>
                 </div>
               </div>
-              {c.nft?.isOnChain ? (
-                <span className="flex items-center gap-1 rounded-full bg-base-500/15 px-2.5 py-1 text-[10px] font-medium text-base-400">
-                  <Hexagon size={11} /> Minted
-                </span>
-              ) : (
-                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-fg-muted">Badge issued</span>
-              )}
+              <div className="mt-3 sm:mt-0 flex-shrink-0">
+                {c.nft?.isOnChain ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-base-500/15 px-2.5 py-1 text-[10px] font-medium text-base-400">
+                    <Hexagon size={11} /> Minted
+                  </span>
+                ) : (
+                  <span className="inline-flex rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-fg-muted">Badge issued</span>
+                )}
+              </div>
             </motion.div>
           ))}
         </AnimatePresence>
