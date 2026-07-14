@@ -66,22 +66,22 @@ export default function MyEventsPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.04 }}
-            className="glass-panel flex flex-col gap-4 rounded-2xl p-6 shadow-glass sm:flex-row sm:items-center sm:justify-between"
+            className="glass-panel w-full flex flex-col gap-4 rounded-2xl p-6 shadow-glass sm:flex-row sm:items-center sm:justify-between"
           >
-            <div>
-              <p className="font-display font-semibold">{app.event.title}</p>
+            <div className="min-w-0">
+              <p className="font-display font-semibold whitespace-normal break-words">{app.event.title}</p>
               <p className="text-xs text-fg-muted">{app.event.venue} · {new Date(app.event.startsAt).toLocaleDateString()}</p>
               <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[app.status]}`}>
                 {app.status}{app.waitlistPosition ? ` · #${app.waitlistPosition}` : ""}
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
               {app.qrDataUrl && (
                 <a
                   href={app.qrDataUrl}
                   download={`eventchain-qr-${app.event.slug}.png`}
-                  className="flex items-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
+                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
                 >
                   <QrCode size={14} /> Download QR
                 </a>
@@ -89,7 +89,7 @@ export default function MyEventsPage() {
               {new Date() > new Date(app.event.endsAt) && app.status === "APPROVED" && (
                 <button
                   onClick={() => downloadCertificate(app.eventId)}
-                  className="flex items-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
+                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
                 >
                   <FileDown size={14} /> Certificate
                 </button>
@@ -97,7 +97,7 @@ export default function MyEventsPage() {
               {["PENDING", "APPROVED", "WAITLISTED"].includes(app.status) && (
                 <button
                   onClick={() => cancel(app.id)}
-                  className="flex items-center gap-1.5 rounded-full border border-red-500/20 px-4 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10"
+                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-red-500/20 px-4 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10"
                 >
                   <X size={14} /> Cancel
                 </button>
