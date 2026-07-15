@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { issueQRCodeForApplication } from "@/lib/qr";
 import { notify } from "@/lib/notifications";
+import { sendApprovalEmail } from "@/lib/email";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -11,7 +12,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const application = await prisma.application.findUnique({
     where: { id: params.id },
-    include: { event: true },
+    include: { event: true, user: true },
   });
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
 
@@ -54,6 +55,25 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     message: `Download your secure, single-use check-in QR code for ${application.event.title}.`,
     metadata: { eventId: application.eventId },
   });
+
+  // Send an approval email with the QR code as an attachment. Failures must
+  // NOT block the approval flow — we only log email errors.
+  (async () => {
+    try {
+      if (application.user?.email) {
+        await sendApprovalEmail({
+          to: application.user.email,
+          name: application.user.name ?? application.user.email,
+          eventTitle: application.event.title,
+          eventStartsAt: application.event.startsAt,
+          eventVenue: application.event.venue,
+          qrDataUrl: dataUrl,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to send approval email:", err);
+    }
+  })();
 
   return NextResponse.json({ application: updated, qrDataUrl: dataUrl });
 }
