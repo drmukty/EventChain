@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Moon, Sun, Hexagon } from "lucide-react";
+import { Moon, Sun, Hexagon, Menu, X } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function Navbar() {
   const [isDark, setIsDark] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session } = useSession();
   const [isStaffAnywhere, setIsStaffAnywhere] = useState(false);
 
@@ -38,7 +39,7 @@ export function Navbar() {
         <nav className="hidden items-center gap-8 text-sm text-fg-muted md:flex">
           <Link href="/events" className="hover:text-white transition-colors">Browse Events</Link>
           {session && (
-            <Link href="/my-events" className="hover:text-white transition-colors">My Events</Link>
+            <Link href="/my-events" className="hover:text-white transition-colors">Joined Events</Link>
           )}
           {session && (
             <Link href="/nft-gallery" className="hover:text-white transition-colors">NFT Gallery</Link>
@@ -53,6 +54,14 @@ export function Navbar() {
           <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
         </nav>
 
+        {/* Mobile Menu Button */}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="rounded-full p-2 text-fg-muted hover:bg-white/5 md:hidden"
+        >
+          {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+
         <div className="flex items-center gap-3">
           <motion.button
             whileTap={{ scale: 0.9, rotate: 180 }}
@@ -65,17 +74,112 @@ export function Navbar() {
 
           <NotificationBell />
 
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="absolute right-6 top-20 z-50 w-64 rounded-2xl border border-white/10 bg-ink-950/95 p-4 shadow-2xl backdrop-blur-xl md:hidden">
+              <div className="flex flex-col gap-2">
+
+                <Link
+                  href="/events"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-lg px-3 py-2 hover:bg-white/5"
+                >
+                  Browse Events
+                </Link>
+
+                {session && (
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2 hover:bg-white/5"
+                  >
+                    Dashboard
+                  </Link>
+                )}
+
+                {session && (
+                  <Link
+                    href="/my-events"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2 hover:bg-white/5"
+                  >
+                    Joined Events
+                  </Link>
+                )}
+
+                {session && (
+                  <Link
+                    href="/dashboard/events"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2 hover:bg-white/5"
+                  >
+                    My Events
+                  </Link>
+                )}
+
+                {session && (
+                  <Link
+                    href="/nft-gallery"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2 hover:bg-white/5"
+                  >
+                    NFT Gallery
+                  </Link>
+                )}
+
+                {isStaffAnywhere && (
+                  <Link
+                    href="/scan"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2 hover:bg-white/5"
+                  >
+                    Scan
+                  </Link>
+                )}
+
+                <Link
+                  href="/guide"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-lg px-3 py-2 hover:bg-white/5"
+                >
+                  User Guide
+                </Link>
+
+                <Link
+                  href="/contact"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-lg px-3 py-2 hover:bg-white/5"
+                >
+                  Contact Us
+                </Link>
+
+                {session && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      signOut();
+                    }}
+                    className="rounded-lg px-3 py-2 text-left hover:bg-white/5"
+                  >
+                    Sign Out
+                  </button>
+                )}
+
+              </div>
+            </div>
+          )}
+
           {session ? (
             <button
               onClick={() => signOut()}
-              className="rounded-full bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
+              className="hidden md:block rounded-full bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
             >
               Sign out
             </button>
           ) : (
             <Link
               href="/login"
-              className="rounded-full bg-base-500 px-4 py-2 text-sm font-medium text-white shadow-glow hover:bg-base-600 transition-colors"
+              className="hidden md:block rounded-full bg-base-500 px-4 py-2 text-sm font-medium text-white shadow-glow hover:bg-base-600 transition-colors"
             >
               Sign in
             </Link>
