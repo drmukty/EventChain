@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { QrCode, X, FileDown } from "lucide-react";
-import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { useSession } from "next-auth/react";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -48,10 +47,11 @@ export default function MyEventsPage() {
     <div className="mx-auto max-w-4xl px-6 py-16">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold">My events</h1>
-          <p className="mt-2 text-fg-muted">Track applications, download QR codes, and grab certificates.</p>
+          <h1 className="font-display text-3xl font-semibold">Joined Events</h1>
+          <p className="mt-2 text-fg-muted">
+            View your event applications, status, QR codes, and certificates.
+          </p>
         </div>
-        <WalletConnectButton currentWallet={(session?.user as any)?.walletAddress} />
       </div>
 
       {loading && <p className="mt-10 text-fg-muted">Loading…</p>}
