@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { Check, X, UserPlus } from "lucide-react";
+import { Check, X, UserPlus, Loader2 } from "lucide-react";
 
 export default function EventApplicationsPage() {
   const { id } = useParams<{ id: string }>();
   const [applications, setApplications] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>("PENDING");
   const [loading, setLoading] = useState(true);
+  const [actingOn, setActingOn] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -23,22 +24,39 @@ export default function EventApplicationsPage() {
   useEffect(load, [id, filter]);
 
   async function act(applicationId: string, action: "approve" | "reject") {
-    const res = await fetch(`/api/applications/${applicationId}/${action}`, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) return toast.error(data.error);
-    toast.success(action === "approve" ? "Approved — QR sent" : "Rejected");
-    load();
+    setActingOn(applicationId);
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/${action}`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || `Failed to ${action} application`);
+        return;
+      }
+      toast.success(action === "approve" ? "Approved — QR sent" : "Rejected");
+      load();
+    } finally {
+      setActingOn(null);
+    }
   }
 
   async function assignVolunteer(userId: string) {
-    const res = await fetch(`/api/events/${id}/team`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role: "VOLUNTEER" }),
-    });
-    const data = await res.json();
-    if (!res.ok) return toast.error(data.error ?? "Could not assign volunteer");
-    toast.success("Assigned as Volunteer for this event");
+    setActingOn(userId);
+    try {
+      const res = await fetch(`/api/events/${id}/team`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: "VOLUNTEER" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not assign volunteer");
+        return;
+      }
+      toast.success("Assigned as Volunteer for this event");
+      load();
+    } finally {
+      setActingOn(null);
+    }
   }
 
   return (
@@ -59,7 +77,13 @@ export default function EventApplicationsPage() {
         ))}
       </div>
 
-      {loading && <p className="mt-10 text-fg-muted">Loading…</p>}
+      {loading && (
+        <div className="mt-16 flex justify-center">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+            <Loader2 size={32} className="text-base-400" />
+          </motion.div>
+        </div>
+      )}
       {!loading && applications.length === 0 && <p className="mt-16 text-center text-fg-muted">Nothing here.</p>}
 
       <div className="mt-8 space-y-3">
@@ -79,20 +103,32 @@ export default function EventApplicationsPage() {
             </div>
             {app.status === "PENDING" && (
               <div className="flex gap-2">
-                <button onClick={() => act(app.id, "approve")} className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/25">
-                  <Check size={14} /> Approve
+                <button
+                  onClick={() => act(app.id, "approve")}
+                  disabled={actingOn === app.id}
+                  className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/25 disabled:opacity-50"
+                >
+                  {actingOn === app.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {actingOn === app.id ? "…" : "Approve"}
                 </button>
-                <button onClick={() => act(app.id, "reject")} className="flex items-center gap-1 rounded-full bg-red-500/15 px-4 py-2 text-xs font-medium text-red-400 hover:bg-red-500/25">
-                  <X size={14} /> Reject
+                <button
+                  onClick={() => act(app.id, "reject")}
+                  disabled={actingOn === app.id}
+                  className="flex items-center gap-1 rounded-full bg-red-500/15 px-4 py-2 text-xs font-medium text-red-400 hover:bg-red-500/25 disabled:opacity-50"
+                >
+                  {actingOn === app.id ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                  {actingOn === app.id ? "…" : "Reject"}
                 </button>
               </div>
             )}
             {app.status === "APPROVED" && (
               <button
                 onClick={() => assignVolunteer(app.userId ?? app.user.id)}
-                className="flex items-center gap-1 rounded-full bg-violet-500/15 px-4 py-2 text-xs font-medium text-violet-400 hover:bg-violet-500/25"
+                disabled={actingOn === (app.userId ?? app.user.id)}
+                className="flex items-center gap-1 rounded-full bg-violet-500/15 px-4 py-2 text-xs font-medium text-violet-400 hover:bg-violet-500/25 disabled:opacity-50"
               >
-                <UserPlus size={14} /> Assign as Volunteer
+                {actingOn === (app.userId ?? app.user.id) ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                {actingOn === (app.userId ?? app.user.id) ? "…" : "Assign as Volunteer"}
               </button>
             )}
           </motion.div>
