@@ -39,6 +39,16 @@ export async function POST(req: Request) {
   });
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
 
+  // Make sure the QR belongs to the event being scanned
+  if (application.eventId !== eventId) {
+    return NextResponse.json(
+      {
+        error: "This QR code belongs to a different event.",
+      },
+      { status: 400 }
+    );
+  }
+
   // Confirm the scanning user is authorized staff for this event.
   const isAdmin = role === "ADMIN";
   if (!isAdmin) {
