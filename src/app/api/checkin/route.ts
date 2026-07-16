@@ -19,9 +19,14 @@ export async function POST(req: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const role = (session.user as any).role;
-  const { payload } = await req.json();
+  const { payload, eventId } = await req.json();
 
-  if (!payload) return NextResponse.json({ error: "Missing QR payload" }, { status: 400 });
+  if (!payload || !eventId) {
+    return NextResponse.json(
+      { error: "Missing QR payload or event ID" },
+      { status: 400 }
+    );
+  }
 
   const result = await verifyAndConsumeQRCode(payload);
   if (!result.ok) {
