@@ -16,6 +16,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
+  // Prevent organizer from applying to their own event
+  if (event.organizerId === userId) {
+    return NextResponse.json(
+      { error: "You cannot apply to your own event." },
+      { status: 400 }
+    );
+  }
+
   if (new Date() > event.registrationDeadline) {
     return NextResponse.json({ error: "Registration is closed for this event" }, { status: 400 });
   }
@@ -42,16 +50,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
     const isFull = approvedCount >= event.capacity;
-
     if (isFull) {
       const waitlistCount = await tx.application.count({
         where: { eventId, status: "WAITLISTED" },
       });
-
       if (event.status !== "SOLD_OUT") {
-        await tx.event.update({ where: { id: eventId }, data: { status: "SOLD_OUT" } });
+        await tx.event.update({
+          where: { id: eventId },
+          data: { status: "SOLD_OUT" },
+        });
       }
-
       return tx.application.create({
         data: {
           eventId,
@@ -62,7 +70,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         },
       });
     }
-
     return tx.application.create({
       data: {
         eventId,
