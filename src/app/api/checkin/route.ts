@@ -1,59 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAndConsumeQRCode } from "@/lib/qr";
+import { prisma } from "@/lib/prisma";
+import { verifyQRCode, consumeQRCode } from "@/lib/qr";
 
-// User‑friendly error messages for each failure reason
 const REASON_MESSAGES: Record<string, string> = {
-  MALFORMED: "QR code data is malformed or missing required fields",
-  TAMPERED: "QR code signature is invalid – data may have been altered",
-  EXPIRED: "This QR code has expired",
-  ALREADY_USED: "This QR code has already been scanned",
-  NOT_FOUND: "QR code not found in the system",
+  MALFORMED: "Invalid QR code",
+  TAMPERED: "QR code has been modified",
+  EXPIRED: "QR code has expired",
+  ALREADY_USED: "QR code has already been used",
+  NOT_FOUND: "QR code not found",
 };
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Parse the request body
-    const body = await request.json();
-    const { payload } = body;
+    const { payload, eventId } = await request.json();
 
-    if (!payload || typeof payload !== "string") {
+    if (!payload || !eventId) {
       return NextResponse.json(
-        { error: "Missing or invalid 'payload' field" },
+        { error: "Missing QR payload or eventId" },
         { status: 400 }
       );
     }
 
-    // 2. Verify and consume the QR code in one atomic operation
-    const result = await verifyAndConsumeQRCode(payload);
+    const result = await verifyQRCode(payload);
 
-    // 3. Handle verification/consumption failure
     if (!result.ok) {
-      const message = REASON_MESSAGES[result.reason] ?? "Invalid QR code";
-      return NextResponse.json({ error: message }, { status: 400 });
+      return NextResponse.json(
+        { error: REASON_MESSAGES[result.reason] },
+        { status: 400 }
+      );
     }
 
-    // 4. Success – retrieve the verified application ID
-    const applicationId = result.applicationId;
+    // QR belongs to another event
+    if (result.eventId !== eventId) {
+      return NextResponse.json(
+        { error: "This QR code belongs to another event." },
+        { status: 400 }
+      );
+    }
 
-    // -----------------------------------------------------------------
-    // YOUR BUSINESS LOGIC GOES HERE
-    // Example: fetch the application, grant access, issue a token, etc.
-    // -----------------------------------------------------------------
-    // const application = await prisma.application.findUnique({
-    //   where: { id: applicationId },
-    // });
-    // if (!application) {
-    //   return NextResponse.json({ error: "Application not found" }, { status: 404 });
-    // }
+    const application = await prisma.application.findUnique({
+      where: { id: result.applicationId },
+      include: {
+        user: true,
+        event: true,
+      },
+    });
 
-    // 5. Return success response
+    if (!application) {
+      return NextResponse.json(
+        { error: "Application not found" },
+        { status:404 }
+      );
+    }
+
+    const existing = await prisma.checkIn.findFirst({
+      where: {
+        eventId: application.eventId,
+        userId: application.userId,
+      },
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "Attendee already checked in." },
+        { status: 400 }
+      );
+    }
+
+    await prisma.checkIn.create({
+      data: {
+        eventId: application.eventId,
+        userId: application.userId,
+      },
+    });
+
+    await consumeQRCode(result.token);
+
     return NextResponse.json({
       success: true,
-      applicationId,
-      // ... any additional data you want to send
+      attendee: {
+        name: application.user.name,
+        email: application.user.email,
+      },
     });
-  } catch (error) {
-    console.error("QR scan error:", error);
+  } catch (err) {
+    console.error(err);
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
