@@ -87,7 +87,7 @@ model User {
   applications    Application[]
   checkIns        CheckIn[]
   nfts            NFT[]
-  certificates    Certificate[]
+  certificates    Certificate[]      // ✅ already present
   notifications   Notification[]
 
   @@index([email])
@@ -166,7 +166,7 @@ model Event {
   applications Application[]
   checkIns     CheckIn[]
   nfts         NFT[]
-  certificates Certificate[]
+  certificates Certificate[]      // ✅ already present
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -282,6 +282,9 @@ model CheckIn {
 
   nft NFT?
 
+  // ✅ NEW: optional certificate relation
+  certificate Certificate?
+
   @@index([eventId])
 }
 
@@ -309,19 +312,28 @@ model NFT {
 }
 
 // ────────────────────────────────
-// CERTIFICATES
+// CERTIFICATES  — UPDATED per Step 1
 // ────────────────────────────────
 
 model Certificate {
-  id        String   @id @default(cuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  pdfUrl    String // Supabase Storage URL
-  issuedAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  certificateId  String   @unique           // human‑readable or UUID‑based identifier
+  userId         String
+  eventId        String
+  checkInId      String?  @unique           // links to a specific check‑in, if available
 
-  @@unique([eventId, userId])
+  issuedAt       DateTime @default(now())
+  downloadedAt   DateTime?                  // when the user last downloaded the PDF
+
+  // ✅ preserve your original field for storing the PDF URL
+  pdfUrl         String                     // Supabase Storage URL
+
+  // Relations
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event          Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  checkIn        CheckIn?  @relation(fields: [checkInId], references: [id], onDelete: SetNull)
+
+  // removed the previous @@unique([eventId, userId]) – now uniqueness is via certificateId
 }
 
 // ────────────────────────────────
