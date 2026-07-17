@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     if (!application) {
       return NextResponse.json(
         { error: "Application not found" },
-        { status:404 }
+        { status: 404 }
       );
     }
 
@@ -67,8 +67,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Updated to include applicationId
     await prisma.checkIn.create({
       data: {
+        applicationId: application.id,
         eventId: application.eventId,
         userId: application.userId,
       },
