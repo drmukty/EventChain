@@ -48,8 +48,18 @@ export async function issueQRCodeForApplication(applicationId: string, expiresAt
     },
   });
 
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { eventId: true },
+  });
+
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
   const payload = JSON.stringify({
     applicationId,
+    eventId: application.eventId,
     token,
     exp: expiresAt.getTime(),
     sig: payloadHash,
@@ -65,11 +75,25 @@ export async function issueQRCodeForApplication(applicationId: string, expiresAt
 }
 
 type ScanResult =
-  | { ok: true; applicationId: string }
-  | { ok: false; reason: "MALFORMED" | "TAMPERED" | "EXPIRED" | "ALREADY_USED" | "NOT_FOUND" };
+  | { ok: true; applicationId: string; eventId: string; token: string }
+  | {
+      ok: false;
+      reason:
+        | "MALFORMED"
+        | "TAMPERED"
+        | "EXPIRED"
+        | "ALREADY_USED"
+        | "NOT_FOUND";
+    };
 
-export async function verifyAndConsumeQRCode(rawPayload: string): Promise<ScanResult> {
-  let parsed: { applicationId: string; token: string; exp: number; sig: string };
+export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
+  let parsed: {
+    applicationId: string;
+    eventId: string;
+    token: string;
+    exp: number;
+    sig: string;
+  };
   try {
     parsed = JSON.parse(rawPayload);
     if (!parsed.applicationId || !parsed.token || !parsed.exp || !parsed.sig) {
@@ -90,20 +114,49 @@ export async function verifyAndConsumeQRCode(rawPayload: string): Promise<ScanRe
     return { ok: false, reason: "EXPIRED" };
   }
 
-  // Atomically flip isUsed so two simultaneous scans of the same QR can't both succeed.
-  const result = await prisma.$transaction(async (tx) => {
-    const qr = await tx.qRCode.findUnique({ where: { token: parsed.token } });
-    if (!qr || qr.applicationId !== parsed.applicationId) return { ok: false as const, reason: "NOT_FOUND" as const };
-    if (qr.isUsed) return { ok: false as const, reason: "ALREADY_USED" as const };
-    if (qr.expiresAt.getTime() < Date.now()) return { ok: false as const, reason: "EXPIRED" as const };
-
-    await tx.qRCode.update({
-      where: { id: qr.id },
-      data: { isUsed: true, usedAt: new Date() },
-    });
-
-    return { ok: true as const, applicationId: qr.applicationId };
+  const qr = await prisma.qRCode.findUnique({
+    where: { token: parsed.token },
   });
 
-  return result;
+  if (!qr || qr.applicationId !== parsed.applicationId) {
+    return { ok: false, reason: "NOT_FOUND" };
+  }
+
+  if (qr.isUsed) {
+    return {
+      ok: false,
+      reason: "ALREADY_USED",
+    };
+  }
+
+  return {
+    ok: true,
+    applicationId: qr.applicationId,
+    eventId: parsed.eventId,
+    token: qr.token,
+  };
+}
+
+export async function consumeQRCode(token: string) {
+  const qr = await prisma.qRCode.findUnique({
+    where: { token },
+  });
+
+  if (!qr) {
+    return { ok: false, reason: "NOT_FOUND" };
+  }
+
+  if (qr.isUsed) {
+    return { ok: false, reason: "ALREADY_USED" };
+  }
+
+  await prisma.qRCode.update({
+    where: { token },
+    data: {
+      isUsed: true,
+      usedAt: new Date(),
+    },
+  });
+
+  return { ok: true };
 }
