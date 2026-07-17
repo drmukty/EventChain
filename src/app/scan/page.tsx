@@ -14,6 +14,7 @@ export default function ScanPage() {
   const [scanState, setScanState] = useState<ScanState>({ status: "idle" });
   const [busy, setBusy] = useState(false);
   const lastPayloadRef = useRef<string | null>(null);
+  const [eventId, setEventId] = useState("");
 
   useEffect(() => {
     let stream: MediaStream;
@@ -66,7 +67,10 @@ export default function ScanPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ payload }),
+        body: JSON.stringify({
+          payload,
+          eventId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -89,6 +93,14 @@ export default function ScanPage() {
       <div className="w-full max-w-md flex flex-col items-center">
         <h1 className="font-display text-2xl sm:text-3xl lg:text-3xl font-semibold text-center">Scan a check-in QR</h1>
         <p className="mt-2 text-sm sm:text-base text-fg-muted text-center">Point the camera at the attendee's QR code.</p>
+
+        <input
+          type="text"
+          placeholder="Enter Event ID"
+          value={eventId}
+          onChange={(e) => setEventId(e.target.value)}
+          className="mb-6 w-full rounded-xl border border-white/10 bg-transparent px-4 py-3"
+        />
 
         <div className="relative mt-6 sm:mt-8 lg:mt-8 w-full max-w-sm aspect-square overflow-hidden rounded-3xl border border-white/10">
           <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
