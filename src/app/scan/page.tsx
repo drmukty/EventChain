@@ -61,7 +61,13 @@ export default function ScanPage() {
   async function handleScan(payload: string) {
     setBusy(true);
     try {
-      const res = await fetch("/api/checkin", { method: "POST", body: JSON.stringify({ payload }) });
+      const res = await fetch("/api/checkin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ payload }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setScanState({ status: "error", message: data.error });
@@ -74,7 +80,7 @@ export default function ScanPage() {
       setTimeout(() => {
         setBusy(false);
         lastPayloadRef.current = null;
-      }, 2500); // brief cooldown so the same frame isn't scanned repeatedly
+      }, 2500);
     }
   }
 
