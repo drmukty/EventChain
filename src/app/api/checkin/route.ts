@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { verifyAndConsumeQRCode } from "@/lib/qr";
+import { verifyQRCode, consumeQRCode } from "@/lib/qr";
 import { mintAttendanceNFT } from "@/lib/blockchain";
 import { notify } from "@/lib/notifications";
 
@@ -28,13 +28,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await verifyAndConsumeQRCode(payload);
-  if (!result.ok) {
-    return NextResponse.json({ error: REASON_MESSAGES[result.reason] ?? "Invalid QR code" }, { status: 400 });
+  // Step 1: Verify the QR code
+  const verification = await verifyQRCode(payload);
+  if (!verification.ok) {
+    return NextResponse.json(
+      { error: REASON_MESSAGES[verification.reason] ?? "Invalid QR code" },
+      { status: 400 }
+    );
   }
 
+  // Step 2: Fetch the application using the ID from verification
   const application = await prisma.application.findUnique({
-    where: { id: result.applicationId },
+    where: { id: verification.applicationId },
     include: { event: true, user: true },
   });
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
@@ -58,6 +63,17 @@ export async function POST(req: Request) {
     if (!membership || !["OWNER", "ADMIN", "VOLUNTEER", "QR_SCANNER"].includes(membership.role)) {
       return NextResponse.json({ error: "You are not authorized to scan for this event" }, { status: 403 });
     }
+  }
+
+  // Mark QR as used only after all validations succeed
+  const consumeResult = await consumeQRCode(verification.token);
+  if (!consumeResult.ok) {
+    return NextResponse.json(
+      {
+        error: REASON_MESSAGES[consumeResult.reason] ?? "QR code already used",
+      },
+      { status: 400 }
+    );
   }
 
   const checkIn = await prisma.checkIn.create({
