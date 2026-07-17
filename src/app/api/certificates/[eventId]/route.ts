@@ -21,7 +21,12 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     return NextResponse.json({ error: "No verified attendance found for this event" }, { status: 404 });
   }
 
-  const existing = await prisma.certificate.findUnique({ where: { eventId_userId: { eventId, userId } } });
+  const existing = await prisma.certificate.findFirst({
+    where: {
+      eventId,
+      userId,
+    },
+  });
   if (existing) return NextResponse.json({ certificate: existing });
 
   const pdfDoc = await PDFDocument.create();
@@ -84,8 +89,18 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
 
   const { data: publicUrlData } = supabaseAdmin.storage.from("eventchain").getPublicUrl(path);
 
+  // ✅ New: generate certificateId before creating
+  const certificateId = `EVT-${eventId.slice(0, 8).toUpperCase()}-${userId.slice(0, 6).toUpperCase()}`;
+
+  // ✅ Updated data object includes certificateId and checkInId
   const certificate = await prisma.certificate.create({
-    data: { eventId, userId, pdfUrl: publicUrlData.publicUrl },
+    data: {
+      certificateId,
+      eventId,
+      userId,
+      checkInId: checkIn.id,
+      pdfUrl: publicUrlData.publicUrl,
+    },
   });
 
   await notify(userId, {
