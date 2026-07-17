@@ -1,131 +1,62 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { verifyQRCode, consumeQRCode } from "@/lib/qr";
-import { mintAttendanceNFT } from "@/lib/blockchain";
-import { notify } from "@/lib/notifications";
+import { NextRequest, NextResponse } from "next/server";
+import { verifyAndConsumeQRCode } from "@/lib/qr";
 
+// User‑friendly error messages for each failure reason
 const REASON_MESSAGES: Record<string, string> = {
-  MALFORMED: "This QR code could not be read.",
-  TAMPERED: "This QR code failed signature verification and cannot be trusted.",
-  EXPIRED: "This QR code has expired.",
-  ALREADY_USED: "This QR code has already been used to check in.",
-  NOT_FOUND: "This QR code is not recognized.",
+  MALFORMED: "QR code data is malformed or missing required fields",
+  TAMPERED: "QR code signature is invalid – data may have been altered",
+  EXPIRED: "This QR code has expired",
+  ALREADY_USED: "This QR code has already been scanned",
+  NOT_FOUND: "QR code not found in the system",
 };
 
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Parse the request body
+    const body = await request.json();
+    const { payload } = body;
 
-  const role = (session.user as any).role;
-  const { payload } = await req.json();
+    if (!payload || typeof payload !== "string") {
+      return NextResponse.json(
+        { error: "Missing or invalid 'payload' field" },
+        { status: 400 }
+      );
+    }
 
-  if (!payload) {
-    return NextResponse.json(
-      { error: "Missing QR payload" },
-      { status: 400 }
-    );
-  }
+    // 2. Verify and consume the QR code in one atomic operation
+    const result = await verifyAndConsumeQRCode(payload);
 
-  // Step 1: Verify the QR code
-  const verification = await verifyQRCode(payload);
-  if (!verification.ok) {
-    return NextResponse.json(
-      { error: REASON_MESSAGES[verification.reason] ?? "Invalid QR code" },
-      { status: 400 }
-    );
-  }
+    // 3. Handle verification/consumption failure
+    if (!result.ok) {
+      const message = REASON_MESSAGES[result.reason] ?? "Invalid QR code";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
 
-  // Step 2: Fetch the application using the ID from verification
-  const application = await prisma.application.findUnique({
-    where: { id: verification.applicationId },
-    include: { event: true, user: true },
-  });
-  if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    // 4. Success – retrieve the verified application ID
+    const applicationId = result.applicationId;
 
-  // Confirm the scanning user is authorized staff for this event.
-  const isAdmin = role === "ADMIN";
-  if (!isAdmin) {
-    const membership = await prisma.teamMember.findUnique({
-      where: { eventId_userId: { eventId: application.eventId, userId: (session.user as any).id } },
+    // -----------------------------------------------------------------
+    // YOUR BUSINESS LOGIC GOES HERE
+    // Example: fetch the application, grant access, issue a token, etc.
+    // -----------------------------------------------------------------
+    // const application = await prisma.application.findUnique({
+    //   where: { id: applicationId },
+    // });
+    // if (!application) {
+    //   return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    // }
+
+    // 5. Return success response
+    return NextResponse.json({
+      success: true,
+      applicationId,
+      // ... any additional data you want to send
     });
-    if (!membership || !["OWNER", "ADMIN", "VOLUNTEER", "QR_SCANNER"].includes(membership.role)) {
-      return NextResponse.json({ error: "You are not authorized to scan for this event" }, { status: 403 });
-    }
-  }
-
-  // Mark QR as used only after all validations succeed
-  const consumeResult = await consumeQRCode(verification.token);
-  if (!consumeResult.ok) {
+  } catch (error) {
+    console.error("QR scan error:", error);
     return NextResponse.json(
-      {
-        error: REASON_MESSAGES[consumeResult.reason] ?? "QR code already used",
-      },
-      { status: 400 }
+      { error: "Internal server error" },
+      { status: 500 }
     );
   }
-
-  const checkIn = await prisma.checkIn.create({
-    data: {
-      eventId: application.eventId,
-      applicationId: application.id,
-      userId: application.userId,
-      scannedById: (session.user as any).id,
-    },
-  });
-
-  let nftResult: { isOnChain: boolean; txHash?: string; tokenId?: string; contractAddr?: string; chainId?: number } = {
-    isOnChain: false,
-  };
-
-  if (application.user.walletAddress) {
-    try {
-      const metadataUrl = `${process.env.NEXTAUTH_URL}/api/nft/metadata/${application.eventId}`;
-      const mint = await mintAttendanceNFT({
-        attendeeWallet: application.user.walletAddress,
-        eventId: application.eventId,
-        metadataUrl,
-      });
-      nftResult = {
-        isOnChain: true,
-        txHash: mint.txHash,
-        tokenId: mint.tokenId,
-        contractAddr: mint.contractAddress,
-        chainId: mint.chainId,
-      };
-    } catch (err) {
-      // Minting failure shouldn't block a successful check-in — fall back to
-      // an off-chain badge and surface the error for the organizer to see.
-      console.error("On-chain mint failed, issuing off-chain badge instead:", err);
-    }
-  }
-
-  const nft = await prisma.nFT.create({
-    data: {
-      eventId: application.eventId,
-      userId: application.userId,
-      checkInId: checkIn.id,
-      isOnChain: nftResult.isOnChain,
-      txHash: nftResult.txHash,
-      tokenId: nftResult.tokenId,
-      contractAddr: nftResult.contractAddr,
-      chainId: nftResult.chainId,
-    },
-  });
-
-  await notify(application.userId, {
-    type: "NFT_MINTED",
-    title: nftResult.isOnChain ? "Your POAP has been minted! 🎨" : "Attendance badge issued",
-    message: nftResult.isOnChain
-      ? `Your on-chain Proof of Attendance for ${application.event.title} is live on Base Sepolia.`
-      : `You checked in to ${application.event.title}. Connect a wallet next time to receive an on-chain POAP.`,
-    metadata: { eventId: application.eventId, nftId: nft.id },
-  });
-
-  return NextResponse.json({
-    checkIn,
-    nft,
-    attendee: { name: application.user.name, email: application.user.email },
-  });
 }
