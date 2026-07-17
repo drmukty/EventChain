@@ -37,10 +37,26 @@ export default function MyEventsPage() {
   }
 
   async function downloadCertificate(eventId: string) {
-    const res = await fetch(`/api/certificates/${eventId}`, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) return toast.error(data.error ?? "Certificate not available yet");
-    window.open(data.certificate.pdfUrl, "_blank");
+    const loadingToast = toast.loading("Generating certificate...");
+    try {
+      const res = await fetch(`/api/certificates/${eventId}`, { method: "POST" });
+      const data = await res.json();
+      toast.dismiss(loadingToast);
+
+      if (!res.ok) {
+        return toast.error(data.error ?? "Certificate not available yet");
+      }
+
+      const pdfUrl = data.certificate?.pdfUrl;
+      if (!pdfUrl) {
+        return toast.error("Invalid response from server");
+      }
+
+      window.open(pdfUrl, "_blank");
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error("Network error – please try again");
+    }
   }
 
   return (
