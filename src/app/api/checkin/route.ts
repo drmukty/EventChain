@@ -19,11 +19,11 @@ export async function POST(req: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const role = (session.user as any).role;
-  const { payload, eventId } = await req.json();
+  const { payload } = await req.json();
 
-  if (!payload || !eventId) {
+  if (!payload) {
     return NextResponse.json(
-      { error: "Missing QR payload or event ID" },
+      { error: "Missing QR payload" },
       { status: 400 }
     );
   }
@@ -43,16 +43,6 @@ export async function POST(req: Request) {
     include: { event: true, user: true },
   });
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
-
-  // Make sure the QR belongs to the event being scanned
-  if (application.eventId !== eventId) {
-    return NextResponse.json(
-      {
-        error: "This QR code belongs to a different event.",
-      },
-      { status: 400 }
-    );
-  }
 
   // Confirm the scanning user is authorized staff for this event.
   const isAdmin = role === "ADMIN";
