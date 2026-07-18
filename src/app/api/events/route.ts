@@ -32,14 +32,105 @@ function slugify(title: string) {
   );
 }
 
-// GET /api/events – unchanged (kept as before)
+// GET /api/events
 export async function GET(req: Request) {
-  // ... (unchanged, same as previous version)
-  // For brevity, I'll assume you keep the same GET handler from the previous code.
-  // I'll include it in the final file.
+  const session = await getServerSession(authOptions);
+  const { searchParams } = new URL(req.url);
+
+  const mine = searchParams.get("mine") === "true";
+  const liveOnly = searchParams.get("live") === "true";
+  const q = searchParams.get("q") ?? undefined;
+  const category = searchParams.get("category") ?? undefined;
+  const location = searchParams.get("location") ?? undefined;
+  const organizer = searchParams.get("organizer") ?? undefined;
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+
+  if (mine && !session?.user) {
+    return NextResponse.json({ events: [] });
+  }
+
+  const statusFilter = liveOnly
+    ? { in: [EventStatus.REGISTRATION_OPEN, EventStatus.LIVE] }
+    : { in: [EventStatus.REGISTRATION_OPEN, EventStatus.SOLD_OUT, EventStatus.LIVE] };
+
+  // ✅ Use enum for visibility
+  const baseWhere: Prisma.EventWhereInput = {
+    visibility: EventVisibility.PUBLIC,
+    status: statusFilter,
+    ...(q && {
+      OR: [
+        { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
+        { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
+      ],
+    }),
+    ...(category && {
+      category: { equals: category, mode: Prisma.QueryMode.insensitive },
+    }),
+    ...(location && {
+      venue: { contains: location, mode: Prisma.QueryMode.insensitive },
+    }),
+    ...(organizer && {
+      organizer: {
+        name: { contains: organizer, mode: Prisma.QueryMode.insensitive },
+      },
+    }),
+    ...(from && { startsAt: { gte: new Date(from) } }),
+    ...(to && { startsAt: { lte: new Date(to) } }),
+  };
+
+  let events: any[] = [];
+
+  if (mine && session?.user) {
+    const userId = (session.user as any).id;
+
+    // ✅ No baseWhere here – we want ALL events where user is organizer (including private/drafts)
+    const organizerEvents = await prisma.event.findMany({
+      where: {
+        organizerId: userId,
+      },
+      include: {
+        organizer: { select: { name: true, image: true } },
+        _count: { select: { applications: true } },
+      },
+    });
+
+    // ✅ No baseWhere here – all team events (regardless of visibility)
+    const teamEvents = await prisma.event.findMany({
+      where: {
+        teamMembers: {
+          some: { userId: userId },
+        },
+      },
+      include: {
+        organizer: { select: { name: true, image: true } },
+        _count: { select: { applications: true } },
+      },
+    });
+
+    const merged = [...organizerEvents, ...teamEvents];
+    const seen = new Set();
+    events = merged.filter((ev) => {
+      if (seen.has(ev.id)) return false;
+      seen.add(ev.id);
+      return true;
+    });
+  } else {
+    // Public query – uses baseWhere (public visibility + status filters)
+    events = await prisma.event.findMany({
+      where: baseWhere,
+      include: {
+        organizer: { select: { name: true, image: true } },
+        _count: { select: { applications: true } },
+      },
+      orderBy: { startsAt: "desc" },
+    });
+  }
+
+  return NextResponse.json({ events });
 }
 
-// POST /api/events – fixed with TeamRole enum
+// POST /api/events
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -87,7 +178,7 @@ export async function POST(req: Request) {
     teamMembers: {
       create: {
         user: { connect: { id: userId } },
-        role: TeamRole.OWNER, // ✅ use enum, not string
+        role: TeamRole.OWNER,
       },
     },
   };
