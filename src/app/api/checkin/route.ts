@@ -12,7 +12,7 @@ const REASON_MESSAGES: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { payload } = await request.json();
+    const { payload, eventId } = await request.json();
 
     if (!payload) {
       return NextResponse.json(
@@ -42,6 +42,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Application not found" },
         { status: 404 }
+      );
+    }
+
+    if (application.eventId !== eventId) {
+      return NextResponse.json(
+        { error: "This QR code does not belong to the selected event." },
+        { status: 400 }
       );
     }
 
