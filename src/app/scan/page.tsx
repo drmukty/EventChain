@@ -155,16 +155,21 @@ export default function ScanPage() {
         <h1 className="text-2xl font-bold">QR Scanner</h1>
 
         <label className="block text-sm font-medium">
-          Event ID
+          Select Event
         </label>
 
-        <input
-          type="text"
+        <select
           value={eventId}
           onChange={(e) => setEventId(e.target.value)}
-          placeholder="Paste Event ID"
           className="w-full rounded border p-2"
-        />
+        >
+          <option value="">Select a live event</option>
+          {events.map((event) => (
+            <option key={event.id} value={event.id}>
+              {event.title}
+            </option>
+          ))}
+        </select>
 
         <div className="relative w-full aspect-square overflow-hidden rounded-xl border">
           <video
