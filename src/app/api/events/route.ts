@@ -1,3 +1,37 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";          // ✅ added
+import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+
+const createEventSchema = z.object({
+  title: z.string().min(3).max(120),
+  description: z.string().min(10),
+  category: z.string().min(2),
+  venue: z.string().min(2),
+  address: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  bannerUrl: z.string().url().optional(),
+  logoUrl: z.string().url().optional(),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  registrationDeadline: z.string().datetime(),
+  capacity: z.number().int().positive(),
+});
+
+function slugify(title: string) {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") +
+    "-" +
+    Math.random().toString(36).slice(2, 7)
+  );
+}
+
 // GET /api/events — public browse/search/filter
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -5,7 +39,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
   const mine = searchParams.get("mine");
-  const liveOnly = searchParams.get("live") === "true";   // ✅ now boolean
+  const liveOnly = searchParams.get("live") === "true";   // ✅ boolean
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
   const location = searchParams.get("location") ?? undefined;
@@ -20,7 +54,6 @@ export async function GET(req: Request) {
         }
       : {
           visibility: "PUBLIC",
-          // ✅ new status filtering logic
           status: liveOnly
             ? { in: ["REGISTRATION_OPEN", "LIVE"] }               // exclude SOLD_OUT
             : { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] },  // include all
@@ -60,4 +93,44 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({ events });
+}
+
+// POST /api/events — organizer creates an event
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return NextResponse.json(
+      { error: "Please login first." },
+      { status: 401 }
+    );
+  }
+  const body = await req.json();
+  const parsed = createEventSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.flatten().fieldErrors },
+      { status: 400 }
+    );
+  }
+
+  const data = parsed.data;
+
+  const event = await prisma.event.create({
+    data: {
+      ...data,
+      slug: slugify(data.title),
+      startsAt: new Date(data.startsAt),
+      endsAt: new Date(data.endsAt),
+      registrationDeadline: new Date(data.registrationDeadline),
+      status: "REGISTRATION_OPEN",
+      visibility: "PUBLIC",
+      organizerId: (session.user as any).id,
+      teamMembers: {
+        create: { userId: (session.user as any).id, role: "OWNER" },
+      },
+    },
+  });
+
+  return NextResponse.json({ event }, { status: 201 });
 }
