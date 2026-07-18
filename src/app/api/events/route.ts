@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, EventStatus } from "@prisma/client";  // ✅ import the enum
 import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
@@ -46,17 +46,16 @@ export async function GET(req: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  // If "mine" is true but user not logged in, return empty (no 401 to avoid UI break)
   if (mine && !session?.user) {
     return NextResponse.json({ events: [] });
   }
 
-  // Base status filter
+  // Use the actual EventStatus enum values
   const statusFilter = liveOnly
-    ? { in: ["REGISTRATION_OPEN", "LIVE"] }
-    : { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] };
+    ? { in: [EventStatus.REGISTRATION_OPEN, EventStatus.LIVE] }
+    : { in: [EventStatus.REGISTRATION_OPEN, EventStatus.SOLD_OUT, EventStatus.LIVE] };
 
-  // Build the where clause for all public events (with search/filter)
+  // Build base where clause
   const baseWhere: Prisma.EventWhereInput = {
     visibility: "PUBLIC",
     status: statusFilter,
@@ -86,11 +85,9 @@ export async function GET(req: Request) {
   if (mine && session?.user) {
     const userId = (session.user as any).id;
 
-    // Log for debugging (will appear in Vercel logs)
     console.log(`[events/GET] mine=true, userId=${userId}`);
 
-    // 🟢 Try to fetch events where user is organizer OR team member.
-    // We'll use two separate queries and merge them (with distinct)
+    // Organizer events
     const organizerEvents = await prisma.event.findMany({
       where: {
         ...baseWhere,
@@ -102,8 +99,7 @@ export async function GET(req: Request) {
       },
     });
 
-    // 🟢 Team member events – adjust relation name if needed.
-    // Possible relation names: "teamMembers", "team", "eventTeam"
+    // Team member events – try common relation names
     let teamEvents: any[] = [];
     try {
       teamEvents = await prisma.event.findMany({
@@ -118,55 +114,48 @@ export async function GET(req: Request) {
           _count: { select: { applications: true } },
         },
       });
-    } catch (error) {
-      // If "teamMembers" doesn't exist, try "team" or "eventTeam"
-      console.warn("teamMembers relation not found, trying 'team' as fallback");
+    } catch {
       try {
         teamEvents = await prisma.event.findMany({
           where: {
             ...baseWhere,
-            team: {
-              some: { userId: userId },
-            },
+            team: { some: { userId: userId } },
           },
           include: {
             organizer: { select: { name: true, image: true } },
             _count: { select: { applications: true } },
           },
         });
-      } catch (e2) {
-        console.warn("Also 'team' failed, trying 'eventTeam'");
+      } catch {
         try {
           teamEvents = await prisma.event.findMany({
             where: {
               ...baseWhere,
-              eventTeam: {
-                some: { userId: userId },
-              },
+              eventTeam: { some: { userId: userId } },
             },
             include: {
               organizer: { select: { name: true, image: true } },
               _count: { select: { applications: true } },
             },
           });
-        } catch (e3) {
-          console.error("No team relation found – check your Prisma schema");
+        } catch (e) {
+          console.error("No team relation found – check your schema");
         }
       }
     }
 
-    // Merge and deduplicate by id
+    // Merge and deduplicate
     const merged = [...organizerEvents, ...teamEvents];
     const seen = new Set();
-    events = merged.filter((event) => {
-      if (seen.has(event.id)) return false;
-      seen.add(event.id);
+    events = merged.filter((ev) => {
+      if (seen.has(ev.id)) return false;
+      seen.add(ev.id);
       return true;
     });
 
     console.log(`[events/GET] Found ${events.length} managed events`);
   } else {
-    // Public (non-mine) query – just use baseWhere
+    // Public query
     events = await prisma.event.findMany({
       where: baseWhere,
       include: {
@@ -208,7 +197,7 @@ export async function POST(req: Request) {
       startsAt: new Date(data.startsAt),
       endsAt: new Date(data.endsAt),
       registrationDeadline: new Date(data.registrationDeadline),
-      status: "REGISTRATION_OPEN",
+      status: EventStatus.REGISTRATION_OPEN,   // ✅ use enum
       visibility: "PUBLIC",
       organizerId: (session.user as any).id,
       teamMembers: {
