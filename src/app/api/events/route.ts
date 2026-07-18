@@ -32,13 +32,13 @@ function slugify(title: string) {
   );
 }
 
-// GET /api/events — public browse + my events (for organizers/volunteers)
+// GET /api/events
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
 
   const { searchParams } = new URL(req.url);
 
-  const mine = searchParams.get("mine") === "true";        // now boolean
+  const mine = searchParams.get("mine") === "true";        // boolean
   const liveOnly = searchParams.get("live") === "true";
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
@@ -47,27 +47,42 @@ export async function GET(req: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
+  // If 'mine' is requested but user is not logged in, reject early
+  if (mine && !session?.user) {
+    return NextResponse.json(
+      { error: "Please login to view your events." },
+      { status: 401 }
+    );
+  }
+
   // Base filter: always public, and status based on liveOnly
   let where: Prisma.EventWhereInput = {
     visibility: "PUBLIC",
     status: liveOnly
-      ? { in: ["REGISTRATION_OPEN", "LIVE"] }               // exclude SOLD_OUT
-      : { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] },  // all
+      ? { in: ["REGISTRATION_OPEN", "LIVE"] }
+      : { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] },
   };
 
-  // If "mine" is requested, restrict to events the user owns OR is a team member of
+  // When 'mine' is true, restrict to events where user is organizer OR team member
   if (mine && session?.user) {
     const userId = (session.user as any).id;
+
+    // 🚨 IMPORTANT: Change "teamMembers" below if your relation is named differently
+    // Common alternatives: "team", "eventTeam", "EventTeam"
     where = {
       ...where,
       OR: [
         { organizerId: userId },
-        { teamMembers: { some: { userId } } },   // includes volunteers/checkers
+        { 
+          teamMembers: { 
+            some: { userId: userId }   // adjust if field name is not 'userId'
+          } 
+        },
       ],
     };
   }
 
-  // Apply optional search / filter parameters
+  // Apply optional search / filter parameters (they get merged with the above)
   if (q) {
     where.OR = [
       { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
@@ -104,7 +119,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ events });
 }
 
-// POST /api/events — organizer creates an event
+// POST /api/events – unchanged
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
