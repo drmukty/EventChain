@@ -25,10 +25,12 @@ export async function GET() {
     });
     if (existing) return existing;
 
+    // ✅ Create NFT record with all required relations
     return prisma.nFT.create({
       data: {
         userId,
         eventId: checkIn.eventId,
+        checkInId: checkIn.id, // required relation
         isOnChain: false,
         mintedAt: new Date(),
       },
