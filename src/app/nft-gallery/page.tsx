@@ -84,12 +84,8 @@ export default function NftGalleryPage() {
               <p className="mt-1 text-xs text-fg-muted">
                 {nft.event.venue} · {new Date(nft.event.startsAt).toLocaleDateString()}
               </p>
-              <p className="mt-3 text-xs text-fg-muted">
-                Minted {new Date(nft.mintedAt).toLocaleDateString()}
-                {nft.tokenId && ` · Token #${nft.tokenId}`}
-              </p>
 
-              {/* Replace mint button with "Coming Soon" */}
+              {/* Removed the "Minted ..." line */}
               <button
                 onClick={handleComingSoon}
                 className="mt-4 flex items-center gap-1.5 rounded-full bg-gray-200 px-4 py-2 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300"
