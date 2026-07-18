@@ -263,10 +263,11 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const pdfBytes = await pdfDoc.save();
 
   // --- 19. Upload to Supabase
-  const path = `certificates/${eventId}/${userId}.pdf`;
+  // ✅ FIX: renamed 'path' to 'uploadPath' to avoid shadowing Node.js 'path' import
+  const uploadPath = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from("EventChain")
-    .upload(path, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
+    .upload(uploadPath, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
 
   if (uploadError) {
     return NextResponse.json({ error: `Failed to store certificate: ${uploadError.message}` }, { status: 500 });
@@ -274,7 +275,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
 
   const { data: publicUrlData } = supabaseAdmin.storage
     .from("EventChain")
-    .getPublicUrl(path);
+    .getPublicUrl(uploadPath);
 
   // --- 20. Create certificate record in DB
   const certificate = await prisma.certificate.create({
