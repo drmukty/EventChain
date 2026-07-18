@@ -12,11 +12,11 @@ const REASON_MESSAGES: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { payload, eventId } = await request.json();
+    const { payload } = await request.json();
 
-    if (!payload || !eventId) {
+    if (!payload) {
       return NextResponse.json(
-        { error: "Missing QR payload or eventId" },
+        { error: "Missing QR payload" },
         { status: 400 }
       );
     }
@@ -26,14 +26,6 @@ export async function POST(request: NextRequest) {
     if (!result.ok) {
       return NextResponse.json(
         { error: REASON_MESSAGES[result.reason] },
-        { status: 400 }
-      );
-    }
-
-    // QR belongs to another event
-    if (result.eventId !== eventId) {
-      return NextResponse.json(
-        { error: "This QR code belongs to another event." },
         { status: 400 }
       );
     }
@@ -67,7 +59,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Updated to include applicationId
     await prisma.checkIn.create({
       data: {
         applicationId: application.id,
