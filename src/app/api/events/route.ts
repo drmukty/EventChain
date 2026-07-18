@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
   title: z.string().min(3).max(120),
-  description: z.string().min(10),
+  description: z.string().optional(), // ✅ now optional
   category: z.string().min(2),
   venue: z.string().min(2),
   address: z.string().optional(),
@@ -83,7 +83,6 @@ export async function GET(req: Request) {
   if (mine && session?.user) {
     const userId = (session.user as any).id;
 
-    // Organizer events
     const organizerEvents = await prisma.event.findMany({
       where: {
         ...baseWhere,
@@ -95,7 +94,6 @@ export async function GET(req: Request) {
       },
     });
 
-    // Team member events – using the correct relation name: teamMembers
     const teamEvents = await prisma.event.findMany({
       where: {
         ...baseWhere,
@@ -109,7 +107,6 @@ export async function GET(req: Request) {
       },
     });
 
-    // Merge and deduplicate
     const merged = [...organizerEvents, ...teamEvents];
     const seen = new Set();
     events = merged.filter((ev) => {
@@ -118,7 +115,6 @@ export async function GET(req: Request) {
       return true;
     });
   } else {
-    // Public query
     events = await prisma.event.findMany({
       where: baseWhere,
       include: {
@@ -145,8 +141,12 @@ export async function POST(req: Request) {
   const body = await req.json();
   const parsed = createEventSchema.safeParse(body);
   if (!parsed.success) {
+    // ✅ Build a clean, user‑friendly error message
+    const errors = parsed.error.flatten().fieldErrors;
+    const firstError = Object.values(errors).flat()[0];
+    const message = firstError || "Invalid form data. Please check your inputs.";
     return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
+      { error: message },
       { status: 400 }
     );
   }
