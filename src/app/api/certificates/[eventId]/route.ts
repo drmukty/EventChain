@@ -6,6 +6,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase";
 import { notify } from "@/lib/notifications";
+import fs from "fs";
+import path from "path";
 
 export async function POST(_req: Request, { params }: { params: { eventId: string } }) {
   const session = await getServerSession(authOptions);
@@ -38,6 +40,20 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([842, 595]);
   const { width, height } = page.getSize();
+
+  // --- Watermark logo
+  const logoPath = path.join(process.cwd(), "public", "images", "eventchain-logo.png");
+  if (fs.existsSync(logoPath)) {
+    const logoBytes = fs.readFileSync(logoPath);
+    const logo = await pdfDoc.embedPng(logoBytes);
+    page.drawImage(logo, {
+      x: width / 2 - 170,
+      y: height / 2 - 170,
+      width: 340,
+      height: 340,
+      opacity: 0.08,
+    });
+  }
 
   // --- 4. Embed fonts
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
