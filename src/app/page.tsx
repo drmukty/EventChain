@@ -25,7 +25,7 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-fg-muted"
             >
-              Live on Base Sepolia
+              🚀 Coming soon on Base
             </motion.p>
 
             <motion.h1
@@ -45,9 +45,9 @@ export default function HomePage() {
               transition={{ delay: 0.1 }}
               className="mt-6 max-w-md text-lg text-fg-muted"
             >
-              EventChain turns every check-in into an encrypted, single-use QR
-              scan — and every verified attendee into an on-chain Proof of
-              Attendance NFT. No spreadsheets. No fake claims.
+              EventChain turns every check-in into an encrypted, QR
+              code — and every verified attendee into an off‑chain badge or on‑chain NFT.
+              No spreadsheets. No fake claims.
             </motion.p>
 
             <motion.div
@@ -87,7 +87,7 @@ export default function HomePage() {
             >
               <Hexagon className="h-10 w-10 text-base-400" strokeWidth={1.5} />
               <p className="font-display text-sm font-medium text-fg-muted">Proof of Attendance</p>
-              <p className="font-mono text-[10px] text-fg-muted/70">0x71C…9fA2 · Base Sepolia</p>
+              {/* Removed the address and Base Sepolia line */}
             </motion.div>
           </motion.div>
         </div>
