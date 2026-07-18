@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
   title: z.string().min(3).max(120),
-  description: z.string().optional(), // ✅ optional
+  description: z.string().optional(),
   category: z.string().min(2),
   venue: z.string().min(2),
   address: z.string().optional(),
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ events });
 }
 
-// POST /api/events – FIXED
+// POST /api/events – FIXED (description fallback)
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -152,9 +152,10 @@ export async function POST(req: Request) {
 
   const data = parsed.data;
 
-  // ✅ Build the Prisma data object manually to avoid undefined fields
-  const createData: Prisma.EventCreateInput = {
+  // Build the Prisma data object – description gets a fallback empty string
+  const createData = {
     title: data.title,
+    description: data.description ?? "", // ✅ fallback to empty string
     category: data.category,
     venue: data.venue,
     address: data.address,
@@ -176,11 +177,6 @@ export async function POST(req: Request) {
       create: { userId: (session.user as any).id, role: "OWNER" },
     },
   };
-
-  // ✅ Only add description if it's provided (not undefined)
-  if (data.description) {
-    createData.description = data.description;
-  }
 
   const event = await prisma.event.create({
     data: createData,
