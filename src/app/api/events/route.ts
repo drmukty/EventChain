@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
   title: z.string().min(3).max(120),
-  description: z.string().optional(), // ✅ now optional
+  description: z.string().optional(),
   category: z.string().min(2),
   venue: z.string().min(2),
   address: z.string().optional(),
@@ -141,7 +141,6 @@ export async function POST(req: Request) {
   const body = await req.json();
   const parsed = createEventSchema.safeParse(body);
   if (!parsed.success) {
-    // ✅ Build a clean, user‑friendly error message
     const errors = parsed.error.flatten().fieldErrors;
     const firstError = Object.values(errors).flat()[0];
     const message = firstError || "Invalid form data. Please check your inputs.";
@@ -162,7 +161,9 @@ export async function POST(req: Request) {
       registrationDeadline: new Date(data.registrationDeadline),
       status: EventStatus.REGISTRATION_OPEN,
       visibility: "PUBLIC",
-      organizerId: (session.user as any).id,
+      organizer: {
+        connect: { id: (session.user as any).id },
+      },
       teamMembers: {
         create: { userId: (session.user as any).id, role: "OWNER" },
       },
