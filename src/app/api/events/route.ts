@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
-import { Prisma, EventStatus } from "@prisma/client";
+import { Prisma, EventStatus, EventVisibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ events });
 }
 
-// POST /api/events – FIXED (description fallback)
+// POST /api/events – FIXED with EventVisibility enum
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -152,10 +152,9 @@ export async function POST(req: Request) {
 
   const data = parsed.data;
 
-  // Build the Prisma data object – description gets a fallback empty string
   const createData = {
     title: data.title,
-    description: data.description ?? "", // ✅ fallback to empty string
+    description: data.description ?? "",
     category: data.category,
     venue: data.venue,
     address: data.address,
@@ -169,7 +168,7 @@ export async function POST(req: Request) {
     endsAt: new Date(data.endsAt),
     registrationDeadline: new Date(data.registrationDeadline),
     status: EventStatus.REGISTRATION_OPEN,
-    visibility: "PUBLIC",
+    visibility: EventVisibility.PUBLIC, // ✅ use enum, not string
     organizer: {
       connect: { id: (session.user as any).id },
     },
