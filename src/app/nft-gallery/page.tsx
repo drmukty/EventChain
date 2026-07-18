@@ -134,7 +134,6 @@ export default function NftGalleryPage() {
                   {nft.tokenId && ` · Token #${nft.tokenId}`}
                 </p>
 
-                {/* Action */}
                 {nft.isOnChain ? (
                   nft.explorerUrl && (
                     <a
