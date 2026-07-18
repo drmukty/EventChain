@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
   title: z.string().min(3).max(120),
-  description: z.string().optional(),
+  description: z.string().min(1, "Description is required"), // ✅ changed
   category: z.string().min(2),
   venue: z.string().min(2),
   address: z.string().optional(),
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ events });
 }
 
-// POST /api/events – FIXED with correct relation for teamMembers
+// POST /api/events – fixed
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
 
   const createData = {
     title: data.title,
-    description: data.description ?? "",
+    description: data.description, // guaranteed non-empty by validation
     category: data.category,
     venue: data.venue,
     address: data.address,
@@ -175,7 +175,6 @@ export async function POST(req: Request) {
     },
     teamMembers: {
       create: {
-        // ✅ Use relation connect instead of userId scalar
         user: { connect: { id: userId } },
         role: "OWNER",
       },
