@@ -80,19 +80,20 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
 
   const path = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
-    .from("eventchain")
+    .from("EventChain")               // ✅ changed from "eventchain"
     .upload(path, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
 
   if (uploadError) {
     return NextResponse.json({ error: `Failed to store certificate: ${uploadError.message}` }, { status: 500 });
   }
 
-  const { data: publicUrlData } = supabaseAdmin.storage.from("eventchain").getPublicUrl(path);
+  const { data: publicUrlData } = supabaseAdmin.storage
+    .from("EventChain")               // ✅ changed from "eventchain"
+    .getPublicUrl(path);
 
-  // ✅ New: generate certificateId before creating
+  // Generate certificateId
   const certificateId = `EVT-${eventId.slice(0, 8).toUpperCase()}-${userId.slice(0, 6).toUpperCase()}`;
 
-  // ✅ Updated data object includes certificateId and checkInId
   const certificate = await prisma.certificate.create({
     data: {
       certificateId,
