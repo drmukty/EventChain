@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check } from "lucide-react";
@@ -17,6 +17,10 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
   const [connecting, setConnecting] = useState(false);
   const [wallet, setWallet] = useState(currentWallet ?? null);
 
+  useEffect(() => {
+    setWallet(currentWallet ?? null);
+  }, [currentWallet]);
+
   async function connect() {
     if (!window.ethereum) {
       toast.error("MetaMask not found — install it from metamask.io");
@@ -27,7 +31,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       const accounts: string[] = await window.ethereum.request({ method: "eth_requestAccounts" });
       const address = accounts[0];
 
-      // Prompt a switch to Base Sepolia; if the chain isn't added yet, add it.
+      // Switch to Base Sepolia
       try {
         await window.ethereum.request({
           method: "wallet_switchEthereumChain",
@@ -47,6 +51,8 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
               },
             ],
           });
+        } else {
+          throw switchError;
         }
       }
 
@@ -55,16 +61,50 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         body: JSON.stringify({ walletAddress: address }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not link wallet");
+
+      if (!res.ok) {
+        if (data.error?.includes("already linked") || data.error?.includes("already in use")) {
+          const userInfo = await fetch(`/api/user/by-wallet?address=${address}`)
+            .then((r) => r.json())
+            .catch(() => null);
+          if (userInfo?.user?.name) {
+            toast.error(`This wallet is already connected to "${userInfo.user.name}". Please use a different account in MetaMask.`);
+          } else {
+            toast.error("This wallet is already connected to another account. Please choose a different account in MetaMask.");
+          }
+        } else {
+          toast.error(data.error || "Could not link wallet");
+        }
+        return;
+      }
 
       setWallet(address);
-      toast.success("Wallet connected");
+      toast.success("Wallet connected successfully!");
+      window.location.reload();
     } catch (err: any) {
-      toast.error(err.message ?? "Connection failed");
+      if (err.code === 4001) {
+        toast.error("Connection rejected — please approve the request.");
+      } else {
+        toast.error(err.message ?? "Connection failed");
+      }
     } finally {
       setConnecting(false);
     }
   }
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.ethereum) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length > 0) {
+          window.location.reload();
+        }
+      };
+      window.ethereum.on("accountsChanged", handleAccountsChanged);
+      return () => {
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      };
+    }
+  }, []);
 
   if (wallet) {
     return (
