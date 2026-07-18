@@ -8,7 +8,7 @@ import { useSession, signOut } from "next-auth/react";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function Navbar() {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false); // ✅ changed from true to false (light mode by default)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session } = useSession();
   const [isStaffAnywhere, setIsStaffAnywhere] = useState(false);
@@ -153,7 +153,7 @@ export function Navbar() {
                   Contact Us
                 </Link>
 
-                {session && (
+                {session ? (
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
@@ -163,8 +163,15 @@ export function Navbar() {
                   >
                     Sign Out
                   </button>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
+                  >
+                    Sign In
+                  </Link>
                 )}
-
               </div>
             </div>
           )}
