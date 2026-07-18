@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyQRCode, consumeQRCode } from "@/lib/qr";
+import { verifyQRCode } from "@/lib/qr"; // ❌ removed consumeQRCode
 
 const REASON_MESSAGES: Record<string, string> = {
   MALFORMED: "Invalid QR code",
   TAMPERED: "QR code has been modified",
-  EXPIRED: "QR code has expired",
-  ALREADY_USED: "QR code has already been used",
+  EXPIRED: "QR code has expired",      // kept but overridden
+  ALREADY_USED: "QR code has already been used", // overridden
   NOT_FOUND: "QR code not found",
 };
 
@@ -23,15 +23,25 @@ export async function POST(request: NextRequest) {
 
     const result = await verifyQRCode(payload);
 
-    if (!result.ok) {
+    // ✅ Only reject if QR is malformed, tampered, or not found
+    if (!result.ok && result.reason !== "EXPIRED" && result.reason !== "ALREADY_USED") {
       return NextResponse.json(
         { error: REASON_MESSAGES[result.reason] },
         { status: 400 }
       );
     }
 
+    // ✅ We still need the applicationId from the token
+    const applicationId = result.applicationId;
+    if (!applicationId) {
+      return NextResponse.json(
+        { error: "Invalid QR code – missing application ID" },
+        { status: 400 }
+      );
+    }
+
     const application = await prisma.application.findUnique({
-      where: { id: result.applicationId },
+      where: { id: applicationId },
       include: {
         user: true,
         event: true,
@@ -45,6 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ✅ Wrong event check – this stays
     if (application.eventId !== eventId) {
       return NextResponse.json(
         { error: "This QR code does not belong to the selected event." },
@@ -52,6 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ✅ Check if already checked in
     const existing = await prisma.checkIn.findFirst({
       where: {
         eventId: application.eventId,
@@ -61,11 +73,12 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       return NextResponse.json(
-        { error: "Attendee already checked in." },
+        { error: "Already checked in for this event" }, // ✅ updated message
         { status: 400 }
       );
     }
 
+    // ✅ Create check‑in record
     await prisma.checkIn.create({
       data: {
         applicationId: application.id,
@@ -74,7 +87,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await consumeQRCode(result.token);
+    // ❌ REMOVED: await consumeQRCode(result.token); – QR is now permanent
 
     return NextResponse.json({
       success: true,
@@ -85,7 +98,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error(err);
-
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
