@@ -40,9 +40,10 @@ function slugify(title: string) {
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
 
-const { searchParams } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
 
-const mine = searchParams.get("mine");
+  const mine = searchParams.get("mine");
+  const liveOnly = searchParams.get("live");
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
   const location = searchParams.get("location") ?? undefined;
@@ -50,103 +51,105 @@ const mine = searchParams.get("mine");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-const where: Prisma.EventWhereInput =
-  mine === "true" && session?.user
-    ? {
-        organizerId: (session.user as any).id,
-      }
-    : {
-        visibility: "PUBLIC",
-        status: {
-          in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"],
-        },
-
-        ...(q && {
-          OR: [
-            {
-              title: {
-                contains: q,
-                mode: Prisma.QueryMode.insensitive,
+  const where: Prisma.EventWhereInput =
+    mine === "true" && session?.user
+      ? {
+          organizerId: (session.user as any).id,
+        }
+      : {
+          visibility: "PUBLIC",
+          status: liveOnly
+            ? "LIVE"
+            : {
+                in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"],
               },
-            },
-            {
-              description: {
-                contains: q,
-                mode: Prisma.QueryMode.insensitive,
+
+          ...(q && {
+            OR: [
+              {
+                title: {
+                  contains: q,
+                  mode: Prisma.QueryMode.insensitive,
+                },
               },
-            },
-          ],
-        }),
+              {
+                description: {
+                  contains: q,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            ],
+          }),
 
-        ...(category && {
-          category: {
-            equals: category,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        }),
-
-        ...(location && {
-          venue: {
-            contains: location,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        }),
-
-        ...(organizer && {
-          organizer: {
-            name: {
-              contains: organizer,
+          ...(category && {
+            category: {
+              equals: category,
               mode: Prisma.QueryMode.insensitive,
             },
-          },
-        }),
+          }),
 
-        ...(from && {
-          startsAt: {
-            gte: new Date(from),
-          },
-        }),
+          ...(location && {
+            venue: {
+              contains: location,
+              mode: Prisma.QueryMode.insensitive,
+            },
+          }),
 
-        ...(to && {
-          startsAt: {
-            lte: new Date(to),
-          },
-        }),
-      };
+          ...(organizer && {
+            organizer: {
+              name: {
+                contains: organizer,
+                mode: Prisma.QueryMode.insensitive,
+              },
+            },
+          }),
 
-const events = await prisma.event.findMany({
-  where,
-  include: {
-    organizer: {
-      select: {
-        name: true,
-        image: true,
+          ...(from && {
+            startsAt: {
+              gte: new Date(from),
+            },
+          }),
+
+          ...(to && {
+            startsAt: {
+              lte: new Date(to),
+            },
+          }),
+        };
+
+  const events = await prisma.event.findMany({
+    where,
+    include: {
+      organizer: {
+        select: {
+          name: true,
+          image: true,
+        },
+      },
+      _count: {
+        select: {
+          applications: true,
+        },
       },
     },
-    _count: {
-      select: {
-        applications: true,
-      },
+    orderBy: {
+      startsAt: "desc",
     },
-  },
-  orderBy: {
-    startsAt: "desc",
-  },
-});
+  });
 
-return NextResponse.json({ events });
+  return NextResponse.json({ events });
 }
 
 // POST /api/events — organizer creates an event
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
-if (!session?.user) {
-  return NextResponse.json(
-    { error: "Please login first." },
-    { status: 401 }
-  );
-}
+  if (!session?.user) {
+    return NextResponse.json(
+      { error: "Please login first." },
+      { status: 401 }
+    );
+  }
   const body = await req.json();
   const parsed = createEventSchema.safeParse(body);
   if (!parsed.success) {
