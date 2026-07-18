@@ -64,7 +64,7 @@ export default function NftGalleryPage() {
           <p className="mt-2 text-fg-muted">Every verified attendance, permanently provable.</p>
         </div>
         <div className="mt-1">
-          <WalletConnectButton currentWallet={session?.user?.walletAddress} />
+          <WalletConnectButton currentWallet={(session?.user as any)?.walletAddress} />
         </div>
       </div>
 
