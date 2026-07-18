@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 const createEventSchema = z.object({
   title: z.string().min(3).max(120),
-  description: z.string().optional(),
+  description: z.string().optional(), // ✅ optional
   category: z.string().min(2),
   venue: z.string().min(2),
   address: z.string().optional(),
@@ -32,7 +32,7 @@ function slugify(title: string) {
   );
 }
 
-// GET /api/events
+// GET /api/events – unchanged
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   const { searchParams } = new URL(req.url);
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ events });
 }
 
-// POST /api/events
+// POST /api/events – FIXED
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -152,22 +152,38 @@ export async function POST(req: Request) {
 
   const data = parsed.data;
 
-  const event = await prisma.event.create({
-    data: {
-      ...data,
-      slug: slugify(data.title),
-      startsAt: new Date(data.startsAt),
-      endsAt: new Date(data.endsAt),
-      registrationDeadline: new Date(data.registrationDeadline),
-      status: EventStatus.REGISTRATION_OPEN,
-      visibility: "PUBLIC",
-      organizer: {
-        connect: { id: (session.user as any).id },
-      },
-      teamMembers: {
-        create: { userId: (session.user as any).id, role: "OWNER" },
-      },
+  // ✅ Build the Prisma data object manually to avoid undefined fields
+  const createData: Prisma.EventCreateInput = {
+    title: data.title,
+    category: data.category,
+    venue: data.venue,
+    address: data.address,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    bannerUrl: data.bannerUrl,
+    logoUrl: data.logoUrl,
+    capacity: data.capacity,
+    slug: slugify(data.title),
+    startsAt: new Date(data.startsAt),
+    endsAt: new Date(data.endsAt),
+    registrationDeadline: new Date(data.registrationDeadline),
+    status: EventStatus.REGISTRATION_OPEN,
+    visibility: "PUBLIC",
+    organizer: {
+      connect: { id: (session.user as any).id },
     },
+    teamMembers: {
+      create: { userId: (session.user as any).id, role: "OWNER" },
+    },
+  };
+
+  // ✅ Only add description if it's provided (not undefined)
+  if (data.description) {
+    createData.description = data.description;
+  }
+
+  const event = await prisma.event.create({
+    data: createData,
   });
 
   return NextResponse.json({ event }, { status: 201 });
