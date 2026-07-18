@@ -128,7 +128,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ events });
 }
 
-// POST /api/events – FIXED with EventVisibility enum
+// POST /api/events – FIXED with correct relation for teamMembers
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -151,6 +151,7 @@ export async function POST(req: Request) {
   }
 
   const data = parsed.data;
+  const userId = (session.user as any).id;
 
   const createData = {
     title: data.title,
@@ -168,12 +169,16 @@ export async function POST(req: Request) {
     endsAt: new Date(data.endsAt),
     registrationDeadline: new Date(data.registrationDeadline),
     status: EventStatus.REGISTRATION_OPEN,
-    visibility: EventVisibility.PUBLIC, // ✅ use enum, not string
+    visibility: EventVisibility.PUBLIC,
     organizer: {
-      connect: { id: (session.user as any).id },
+      connect: { id: userId },
     },
     teamMembers: {
-      create: { userId: (session.user as any).id, role: "OWNER" },
+      create: {
+        // ✅ Use relation connect instead of userId scalar
+        user: { connect: { id: userId } },
+        role: "OWNER",
+      },
     },
   };
 
