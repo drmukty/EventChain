@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";          // ✅ added
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -32,14 +32,14 @@ function slugify(title: string) {
   );
 }
 
-// GET /api/events — public browse/search/filter
+// GET /api/events — public browse + my events (for organizers/volunteers)
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
 
   const { searchParams } = new URL(req.url);
 
-  const mine = searchParams.get("mine");
-  const liveOnly = searchParams.get("live") === "true";   // ✅ boolean
+  const mine = searchParams.get("mine") === "true";        // now boolean
+  const liveOnly = searchParams.get("live") === "true";
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
   const location = searchParams.get("location") ?? undefined;
@@ -47,41 +47,50 @@ export async function GET(req: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  const where: Prisma.EventWhereInput =
-    mine === "true" && session?.user
-      ? {
-          organizerId: (session.user as any).id,
-        }
-      : {
-          visibility: "PUBLIC",
-          status: liveOnly
-            ? { in: ["REGISTRATION_OPEN", "LIVE"] }               // exclude SOLD_OUT
-            : { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] },  // include all
+  // Base filter: always public, and status based on liveOnly
+  let where: Prisma.EventWhereInput = {
+    visibility: "PUBLIC",
+    status: liveOnly
+      ? { in: ["REGISTRATION_OPEN", "LIVE"] }               // exclude SOLD_OUT
+      : { in: ["REGISTRATION_OPEN", "SOLD_OUT", "LIVE"] },  // all
+  };
 
-          ...(q && {
-            OR: [
-              { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
-              { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
-            ],
-          }),
+  // If "mine" is requested, restrict to events the user owns OR is a team member of
+  if (mine && session?.user) {
+    const userId = (session.user as any).id;
+    where = {
+      ...where,
+      OR: [
+        { organizerId: userId },
+        { teamMembers: { some: { userId } } },   // includes volunteers/checkers
+      ],
+    };
+  }
 
-          ...(category && {
-            category: { equals: category, mode: Prisma.QueryMode.insensitive },
-          }),
-
-          ...(location && {
-            venue: { contains: location, mode: Prisma.QueryMode.insensitive },
-          }),
-
-          ...(organizer && {
-            organizer: {
-              name: { contains: organizer, mode: Prisma.QueryMode.insensitive },
-            },
-          }),
-
-          ...(from && { startsAt: { gte: new Date(from) } }),
-          ...(to && { startsAt: { lte: new Date(to) } }),
-        };
+  // Apply optional search / filter parameters
+  if (q) {
+    where.OR = [
+      { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
+      { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
+    ];
+  }
+  if (category) {
+    where.category = { equals: category, mode: Prisma.QueryMode.insensitive };
+  }
+  if (location) {
+    where.venue = { contains: location, mode: Prisma.QueryMode.insensitive };
+  }
+  if (organizer) {
+    where.organizer = {
+      name: { contains: organizer, mode: Prisma.QueryMode.insensitive },
+    };
+  }
+  if (from) {
+    where.startsAt = { gte: new Date(from) };
+  }
+  if (to) {
+    where.startsAt = { lte: new Date(to) };
+  }
 
   const events = await prisma.event.findMany({
     where,
