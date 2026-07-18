@@ -43,10 +43,10 @@ export function NotificationBell() {
   if (!session) return null;
 
   return (
-    <>
+    <div className="relative">
       {/* Bell Button */}
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen((v) => !v)}
         className="relative rounded-full p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
         aria-label="Notifications"
       >
@@ -58,93 +58,60 @@ export function NotificationBell() {
         )}
       </button>
 
-      {/* Large Modal (not full screen) */}
+      {/* Dropdown Panel – same size as before, with glass + close button */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="absolute right-0 mt-2 w-80 rounded-2xl border border-gray-200/50 bg-white/80 p-3 shadow-xl backdrop-blur-xl dark:border-gray-700/50 dark:bg-gray-900/80"
           >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="relative max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-gray-200/50 bg-white/90 p-6 shadow-2xl backdrop-blur-xl dark:border-gray-700/50 dark:bg-gray-900/90"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Notifications
-                  {unread > 0 && (
-                    <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                      ({unread} unread)
-                    </span>
-                  )}
-                </h2>
-                <div className="flex items-center gap-3">
-                  {items.length > 0 && (
-                    <button
-                      onClick={markAllRead}
-                      className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-                    >
-                      Mark all read
-                    </button>
-                  )}
+            {/* Header with Close Button */}
+            <div className="mb-2 flex items-center justify-between px-2">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Notifications</p>
+              <div className="flex items-center gap-2">
+                {items.length > 0 && (
                   <button
-                    onClick={() => setOpen(false)}
-                    className="rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    onClick={markAllRead}
+                    className="text-xs text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    <X size={20} className="text-gray-700 dark:text-gray-300" />
+                    Mark all read
                   </button>
-                </div>
-              </div>
-
-              {/* Notification List */}
-              <div className="max-h-[calc(85vh-120px)] space-y-2 overflow-y-auto pr-2">
-                {items.length === 0 ? (
-                  <div className="flex h-40 items-center justify-center">
-                    <p className="text-center text-gray-500 dark:text-gray-400">
-                      No notifications yet.
-                    </p>
-                  </div>
-                ) : (
-                  items.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`rounded-xl px-4 py-3 transition-colors ${
-                        !n.readAt
-                          ? "bg-blue-50 dark:bg-blue-900/30"
-                          : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {n.title}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            {n.message}
-                          </p>
-                          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                            {new Date(n.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        {!n.readAt && (
-                          <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-blue-600" />
-                        )}
-                      </div>
-                    </div>
-                  ))
                 )}
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+                >
+                  <X size={14} className="text-gray-700 dark:text-gray-300" />
+                </button>
               </div>
-            </motion.div>
+            </div>
+
+            {/* Notification List */}
+            <div className="max-h-80 space-y-1 overflow-y-auto">
+              {items.length === 0 && (
+                <p className="px-2 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                  Nothing yet.
+                </p>
+              )}
+              {items.map((n) => (
+                <div
+                  key={n.id}
+                  className={`rounded-xl px-3 py-2 text-sm ${
+                    !n.readAt
+                      ? "bg-gray-100 dark:bg-gray-800"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  }`}
+                >
+                  <p className="font-medium text-gray-900 dark:text-white">{n.title}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">{n.message}</p>
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
