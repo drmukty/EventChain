@@ -16,15 +16,10 @@ export default function EditEventPage() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    category: "",
     venue: "",
-    address: "",
-    startsAt: "",
     endsAt: "",
     registrationDeadline: "",
     capacity: 0,
-    bannerUrl: "",
-    logoUrl: "",
   });
 
   useEffect(() => {
@@ -36,15 +31,10 @@ export default function EditEventPage() {
           setFormData({
             title: e.title || "",
             description: e.description || "",
-            category: e.category || "",
             venue: e.venue || "",
-            address: e.address || "",
-            startsAt: e.startsAt ? new Date(e.startsAt).toISOString().slice(0, 16) : "",
             endsAt: e.endsAt ? new Date(e.endsAt).toISOString().slice(0, 16) : "",
             registrationDeadline: e.registrationDeadline ? new Date(e.registrationDeadline).toISOString().slice(0, 16) : "",
             capacity: e.capacity || 0,
-            bannerUrl: e.bannerUrl || "",
-            logoUrl: e.logoUrl || "",
           });
         }
         setLoading(false);
@@ -81,7 +71,7 @@ export default function EditEventPage() {
     }
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -101,7 +91,7 @@ export default function EditEventPage() {
     <div className="mx-auto max-w-3xl px-6 py-16">
       <Link
         href={`/dashboard/events/${id}`}
-        className="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-white transition-colors"
+        className="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-gray-900 dark:hover:text-white transition-colors"
       >
         <ArrowLeft size={16} /> Back to event
       </Link>
@@ -111,114 +101,78 @@ export default function EditEventPage() {
         animate={{ opacity: 1, y: 0 }}
         className="mt-6"
       >
-        <h1 className="font-display text-3xl font-semibold">Edit Event</h1>
+        <h1 className="font-display text-3xl font-semibold text-gray-900 dark:text-white">Edit Event</h1>
         <p className="mt-2 text-fg-muted">Update your event details.</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-300">Title *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Event Name *</label>
             <input
               type="text"
               name="title"
               value={formData.title}
               onChange={handleChange}
               required
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-300">Description *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description *</label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleChange}
               rows={4}
               required
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
             />
           </div>
 
-          {/* Category */}
+          {/* Venue */}
           <div>
-            <label className="block text-sm font-medium text-gray-300">Category *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Venue *</label>
             <input
               type="text"
-              name="category"
-              value={formData.category}
+              name="venue"
+              value={formData.venue}
               onChange={handleChange}
               required
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
             />
           </div>
 
-          {/* Venue + Address */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Venue *</label>
-              <input
-                type="text"
-                name="venue"
-                value={formData.venue}
-                onChange={handleChange}
-                required
-                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Address</label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
-              />
-            </div>
+          {/* End Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date *</label>
+            <input
+              type="datetime-local"
+              name="endsAt"
+              value={formData.endsAt}
+              onChange={handleChange}
+              required
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            />
           </div>
 
-          {/* Dates */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Starts At *</label>
-              <input
-                type="datetime-local"
-                name="startsAt"
-                value={formData.startsAt}
-                onChange={handleChange}
-                required
-                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-base-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Ends At *</label>
-              <input
-                type="datetime-local"
-                name="endsAt"
-                value={formData.endsAt}
-                onChange={handleChange}
-                required
-                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-base-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Registration Deadline *</label>
-              <input
-                type="datetime-local"
-                name="registrationDeadline"
-                value={formData.registrationDeadline}
-                onChange={handleChange}
-                required
-                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-base-500"
-              />
-            </div>
+          {/* Registration Deadline */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Registration Deadline *</label>
+            <input
+              type="datetime-local"
+              name="registrationDeadline"
+              value={formData.registrationDeadline}
+              onChange={handleChange}
+              required
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            />
           </div>
 
           {/* Capacity */}
           <div>
-            <label className="block text-sm font-medium text-gray-300">Capacity *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Capacity *</label>
             <input
               type="number"
               name="capacity"
@@ -226,33 +180,7 @@ export default function EditEventPage() {
               onChange={handleChange}
               min="1"
               required
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
-            />
-          </div>
-
-          {/* Banner URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Banner Image URL</label>
-            <input
-              type="url"
-              name="bannerUrl"
-              value={formData.bannerUrl}
-              onChange={handleChange}
-              placeholder="https://example.com/banner.png"
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
-            />
-          </div>
-
-          {/* Logo URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Logo Image URL</label>
-            <input
-              type="url"
-              name="logoUrl"
-              value={formData.logoUrl}
-              onChange={handleChange}
-              placeholder="https://example.com/logo.png"
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-fg-muted/50 focus:outline-none focus:ring-2 focus:ring-base-500"
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
             />
           </div>
 
@@ -267,7 +195,7 @@ export default function EditEventPage() {
             </button>
             <Link
               href={`/dashboard/events/${id}`}
-              className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-center font-medium text-fg-muted hover:bg-white/5 transition-colors"
+              className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-center font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
             >
               Cancel
             </Link>
