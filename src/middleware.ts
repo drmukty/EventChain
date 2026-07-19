@@ -18,10 +18,22 @@ import { NextResponse } from "next/server";
  * would 401 but the page shell itself rendered for anonymous visitors.
  */
 
-const PUBLIC_PATHS = ["/", "/about", "/contact", "/guide", "/login", "/register"];
+// ✅ Added forgot-password and reset-password routes
+const PUBLIC_PATHS = [
+  "/",
+  "/about",
+  "/contact",
+  "/guide",
+  "/login",
+  "/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+];
 
 function isPublicPath(pathname: string) {
   if (PUBLIC_PATHS.includes(pathname)) return true;
+  // Allow dynamic reset password routes: /auth/reset-password/any-token
+  if (pathname.startsWith("/auth/reset-password/")) return true;
   // Allow public event browsing (list + detail pages) per spec section 8 —
   // all events are PUBLIC now, so browsing doesn't require auth. Actions
   // like "Apply" still hit an authenticated API route.
