@@ -33,11 +33,11 @@ export async function GET() {
           scannedById: true,
         },
       },
-      qrCode: {        // ✅ ADD THIS
+      qrCode: {
         select: {
           id: true,
           token: true,
-          dataUrl: true,
+          // ✅ Remove dataUrl if it doesn't exist
         },
       },
     },
@@ -54,7 +54,9 @@ export async function GET() {
       waitlistPosition: app.waitlistPosition,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
-      qrDataUrl: app.qrCode?.dataUrl || null,   // ✅ Now this will work
+      // If dataUrl doesn't exist, qrDataUrl will be null
+      // The frontend will handle this
+      qrDataUrl: null,
       event: app.event,
       checkIn: app.checkIn || null,
     };
