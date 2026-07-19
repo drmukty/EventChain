@@ -41,6 +41,24 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const page = pdfDoc.addPage([842, 595]);
   const { width, height } = page.getSize();
 
+  // --- Helper to center text horizontally
+  const centerText = (
+    text: string,
+    font: any,
+    size: number,
+    y: number,
+    color = rgb(0, 0, 0)
+  ) => {
+    const w = font.widthOfTextAtSize(text, size);
+    page.drawText(text, {
+      x: (width - w) / 2,
+      y,
+      size,
+      font,
+      color,
+    });
+  };
+
   // --- Watermark logo
   const logoPath = path.join(process.cwd(), "public", "images", "eventchain-logo.png");
   if (fs.existsSync(logoPath)) {
@@ -86,64 +104,27 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   });
 
   // --- 6. Header: "CERTIFICATE OF ATTENDANCE"
-  const title = "CERTIFICATE OF ATTENDANCE";
-  const titleSize = 32;
-  const titleWidth = boldFont.widthOfTextAtSize(title, titleSize);
-  page.drawText(title, {
-    x: (width - titleWidth) / 2,
-    y: height - 130,
-    size: titleSize,
-    font: boldFont,
-    color: rgb(0.05, 0.15, 0.35),
-  });
+  centerText("CERTIFICATE OF ATTENDANCE", boldFont, 32, height - 130, rgb(0.05, 0.15, 0.35));
 
   // --- 7. Subtitle: "This certifies that"
-  const subText = "This certifies that";
-  const subSize = 16;
-  const subWidth = regularFont.widthOfTextAtSize(subText, subSize);
-  page.drawText(subText, {
-    x: (width - subWidth) / 2,
-    y: height - 180,
-    size: subSize,
-    font: regularFont,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+  centerText("This certifies that", regularFont, 16, height - 180, rgb(0.2, 0.2, 0.2));
 
-  // --- 8. Attendee name (large, bold, blue)
+  // --- 8. Attendee name (large, bold, blue) – centered with helper
   const attendeeName = checkIn.user.name ?? checkIn.user.email;
-  const nameSize = 32;
-  const nameWidth = boldFont.widthOfTextAtSize(attendeeName, nameSize);
-  page.drawText(attendeeName, {
-    x: (width - nameWidth) / 2,
-    y: height - 230,
-    size: nameSize,
-    font: boldFont,
-    color: rgb(0.1, 0.2, 0.5),
-  });
+  centerText(attendeeName, boldFont, 32, 312, rgb(0.1, 0.2, 0.5));
 
   // --- 9. Event details: "successfully attended and participated in"
-  const attendedText = "has successfully attended and participated in";
-  const attendedSize = 14;
-  const attendedWidth = regularFont.widthOfTextAtSize(attendedText, attendedSize);
-  page.drawText(attendedText, {
-    x: (width - attendedWidth) / 2,
-    y: height - 270,
-    size: attendedSize,
-    font: regularFont,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+  centerText(
+    "has successfully attended and participated in",
+    regularFont,
+    14,
+    height - 270,
+    rgb(0.2, 0.2, 0.2)
+  );
 
-  // --- 10. Event title (larger, bold)
+  // --- 10. Event title (larger, bold) – centered with helper
   const eventTitle = checkIn.event.title;
-  const eventSize = 22;
-  const eventWidth = boldFont.widthOfTextAtSize(eventTitle, eventSize);
-  page.drawText(eventTitle, {
-    x: (width - eventWidth) / 2,
-    y: height - 310,
-    size: eventSize,
-    font: boldFont,
-    color: rgb(0.05, 0.1, 0.2),
-  });
+  centerText(eventTitle, boldFont, 22, 380, rgb(0.05, 0.1, 0.2));
 
   // --- 11. Date and venue
   const dateStr = checkIn.event.startsAt.toLocaleDateString("en-US", {
@@ -153,31 +134,15 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   });
   const venueStr = checkIn.event.venue;
   const detailsText = `Date: ${dateStr}  |  Venue: ${venueStr}`;
-  const detailsSize = 12;
-  const detailsWidth = regularFont.widthOfTextAtSize(detailsText, detailsSize);
-  page.drawText(detailsText, {
-    x: (width - detailsWidth) / 2,
-    y: height - 350,
-    size: detailsSize,
-    font: regularFont,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+  centerText(detailsText, regularFont, 12, height - 350, rgb(0.2, 0.2, 0.2));
 
-  // --- 12. Check-in time
+  // --- 12. Check-in time – centered with helper
   const checkInTime = checkIn.checkedInAt.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
   });
   const timeText = `Checked in at: ${checkInTime} (UTC)`;
-  const timeSize = 11;
-  const timeWidth = regularFont.widthOfTextAtSize(timeText, timeSize);
-  page.drawText(timeText, {
-    x: (width - timeWidth) / 2,
-    y: height - 375,
-    size: timeSize,
-    font: regularFont,
-    color: rgb(0.3, 0.3, 0.3),
-  });
+  centerText(timeText, regularFont, 11, 475, rgb(0.3, 0.3, 0.3));
 
   // --- 13. "VERIFIED" badge (circle with text)
   const badgeRadius = 30;
@@ -220,30 +185,29 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- 16. QR code (bottom right) – embed as PNG
+  // --- 16. QR code (fixed position and size)
   const qrBuffer = await QRCode.toBuffer(verifyUrl, {
     width: 120,
     margin: 1,
     errorCorrectionLevel: "H",
   });
   const qrImage = await pdfDoc.embedPng(qrBuffer);
-  const qrDims = qrImage.scale(0.8);
-  const qrX = width - 140;
-  const qrY = 60;
+  const qrX = 690;
+  const qrY = 415;
+  const qrSize = 105;
   page.drawImage(qrImage, {
     x: qrX,
     y: qrY,
-    width: qrDims.width,
-    height: qrDims.height,
+    width: qrSize,
+    height: qrSize,
   });
 
-  // --- 17. Signature: event name in cursive (as signature)
-  // Place it below the event title or at bottom right. We'll put it bottom right above QR.
+  // --- 17. Signature: centered under the event title
   const signatureText = eventTitle;
   const sigSize = 18;
   const sigWidth = timesItalic.widthOfTextAtSize(signatureText, sigSize);
-  const sigX = width - 140 - sigWidth - 10;
-  const sigY = 140;
+  const sigX = (width - sigWidth) / 2;
+  const sigY = 505;
   page.drawText(signatureText, {
     x: sigX,
     y: sigY,
@@ -263,7 +227,6 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const pdfBytes = await pdfDoc.save();
 
   // --- 19. Upload to Supabase
-  // ✅ FIX: renamed 'path' to 'uploadPath' to avoid shadowing Node.js 'path' import
   const uploadPath = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from("EventChain")
