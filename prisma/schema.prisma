@@ -87,7 +87,7 @@ model User {
   applications    Application[]
   checkIns        CheckIn[]
   nfts            NFT[]
-  certificates    Certificate[]      // ✅ already present
+  certificates    Certificate[]
   notifications   Notification[]
 
   @@index([email])
@@ -151,8 +151,8 @@ model Event {
   capacity             Int
   visibility           EventVisibility @default(PUBLIC)
   status               EventStatus     @default(DRAFT)
-  invitedEmails        String[]        @default([]) // for PRIVATE events: allowlisted emails who may view/apply
-  tokenGateAddress     String? // required contract address for TOKEN_GATED / NFT_HOLDER events
+  invitedEmails        String[]        @default([])
+  tokenGateAddress     String?
   tokenGateMinBalance  Int?            @default(1)
 
   organizerId String
@@ -166,7 +166,7 @@ model Event {
   applications Application[]
   checkIns     CheckIn[]
   nfts         NFT[]
-  certificates Certificate[]      // ✅ already present
+  certificates Certificate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -177,13 +177,13 @@ model Event {
 }
 
 model Speaker {
-  id      String  @id @default(cuid())
-  eventId String
-  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name    String
-  title   String?
+  id       String  @id @default(cuid())
+  eventId  String
+  event    Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name     String
+  title    String?
   photoUrl String?
-  bio     String?
+  bio      String?
 }
 
 model Sponsor {
@@ -192,7 +192,7 @@ model Sponsor {
   event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name    String
   logoUrl String?
-  tier    String? // e.g. "Platinum", "Gold", "Community"
+  tier    String?
   url     String?
 }
 
@@ -211,12 +211,12 @@ model AgendaItem {
 // ────────────────────────────────
 
 model TeamMember {
-  id       String   @id @default(cuid())
-  eventId  String
-  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User     @relation(fields: [userId], references: [id])
-  role     TeamRole @default(VOLUNTEER)
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      TeamRole @default(VOLUNTEER)
   invitedAt DateTime @default(now())
 
   @@unique([eventId, userId])
@@ -227,18 +227,18 @@ model TeamMember {
 // ────────────────────────────────
 
 model Application {
-  id        String            @id @default(cuid())
-  eventId   String
-  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User              @relation(fields: [userId], references: [id])
-  status    ApplicationStatus @default(PENDING)
-  answers   Json? // custom application questions/answers
+  id              String            @id @default(cuid())
+  eventId         String
+  event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  status          ApplicationStatus @default(PENDING)
+  answers         Json?
   waitlistPosition Int?
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   qrCode   QRCode?
   checkIn  CheckIn?
@@ -255,8 +255,8 @@ model QRCode {
   id            String      @id @default(cuid())
   applicationId String      @unique
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  token         String      @unique // opaque random id embedded in the QR payload
-  payloadHash   String // HMAC-SHA256 of the signed payload, for tamper detection
+  token         String      @unique
+  payloadHash   String
   isUsed        Boolean     @default(false)
   usedAt        DateTime?
   expiresAt     DateTime
@@ -277,12 +277,10 @@ model CheckIn {
   application   Application @relation(fields: [applicationId], references: [id])
   userId        String
   user          User        @relation(fields: [userId], references: [id])
-  scannedById   String? // team member who performed the scan
+  scannedById   String?
   checkedInAt   DateTime    @default(now())
 
-  nft NFT?
-
-  // ✅ NEW: optional certificate relation
+  nft         NFT?
   certificate Certificate?
 
   @@index([eventId])
@@ -293,47 +291,43 @@ model CheckIn {
 // ────────────────────────────────
 
 model NFT {
-  id            String   @id @default(cuid())
-  eventId       String
-  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  checkInId     String   @unique
-  checkIn       CheckIn  @relation(fields: [checkInId], references: [id])
-  isOnChain     Boolean  @default(false) // false => off-chain badge issued (no wallet connected)
-  tokenId       String?
-  txHash        String?
-  contractAddr  String?
-  chainId       Int?
-  mintedAt      DateTime @default(now())
-  metadataUrl   String?
+  id           String   @id @default(cuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  checkInId    String   @unique
+  checkIn      CheckIn  @relation(fields: [checkInId], references: [id])
+  isOnChain    Boolean  @default(false)
+  tokenId      String?
+  txHash       String?
+  contractAddr String?
+  chainId      Int?
+  mintedAt     DateTime @default(now())
+  metadataUrl  String?
 
   @@index([userId])
 }
 
 // ────────────────────────────────
-// CERTIFICATES  — UPDATED per Step 1
+// CERTIFICATES
 // ────────────────────────────────
 
 model Certificate {
-  id             String   @id @default(cuid())
-  certificateId  String   @unique           // human‑readable or UUID‑based identifier
-  userId         String
-  eventId        String
-  checkInId      String?  @unique           // links to a specific check‑in, if available
+  id            String   @id @default(cuid())
+  certificateId String   @unique
+  userId        String
+  eventId       String
+  checkInId     String?  @unique
 
-  issuedAt       DateTime @default(now())
-  downloadedAt   DateTime?                  // when the user last downloaded the PDF
+  issuedAt      DateTime @default(now())
+  downloadedAt  DateTime?
 
-  // ✅ preserve your original field for storing the PDF URL
-  pdfUrl         String                     // Supabase Storage URL
+  pdfUrl        String
 
-  // Relations
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event          Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  checkIn        CheckIn?  @relation(fields: [checkInId], references: [id], onDelete: SetNull)
-
-  // removed the previous @@unique([eventId, userId]) – now uniqueness is via certificateId
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event  Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  checkIn CheckIn? @relation(fields: [checkInId], references: [id], onDelete: SetNull)
 }
 
 // ────────────────────────────────
@@ -352,4 +346,19 @@ model Notification {
   createdAt DateTime          @default(now())
 
   @@index([userId, readAt])
+}
+
+// ────────────────────────────────
+// PASSWORD RESET TOKENS  ✅ ADDED
+// ────────────────────────────────
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
 }
