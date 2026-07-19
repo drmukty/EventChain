@@ -6,32 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
 import { checkEventAccess } from "@/lib/eventAccess";
 
-// Fields an organizer may edit. Notably excludes organizerId, visibility,
-// tokenGateAddress/tokenGateMinBalance/invitedEmails (private/token-gated
-// events are removed per spec — every event stays PUBLIC), slug, and id.
-// Previously PATCH applied the raw request body directly to
-// `prisma.event.update`, so any of those fields could be overwritten by
-// whoever could call the endpoint (which, since it only checked
-// OWNER/ADMIN team membership, is at least every organizer of the event).
-const updateEventSchema = z
-  .object({
-    title: z.string().min(3).max(120),
-    description: z.string().min(10),
-    category: z.string().min(2),
-    venue: z.string().min(2),
-    address: z.string().optional().nullable(),
-    latitude: z.number().optional().nullable(),
-    longitude: z.number().optional().nullable(),
-    bannerUrl: z.string().url().optional().nullable(),
-    logoUrl: z.string().url().optional().nullable(),
-    startsAt: z.string().datetime(),
-    endsAt: z.string().datetime(),
-    registrationDeadline: z.string().datetime(),
-    capacity: z.number().int().positive(),
-    status: z.enum(["DRAFT", "REGISTRATION_OPEN", "SOLD_OUT", "LIVE", "COMPLETED", "CANCELLED"]),
-  })
-  .partial();
-
 async function assertCanManage(eventId: string, userId: string, role: string) {
   if (role === "ADMIN") return true;
   const membership = await prisma.teamMember.findUnique({
@@ -75,12 +49,40 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!canManage) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const rawBody = await req.json();
-  const parsed = updateEventSchema.safeParse(rawBody);
+  
+  // ✅ Only validate fields that are actually sent
+  const updateSchema = z.object({
+    title: z.string().min(3).max(120).optional(),
+    description: z.string().min(10).optional(),
+    category: z.string().min(2).optional(),
+    venue: z.string().min(2).optional(),
+    address: z.string().optional().nullable(),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable(),
+    bannerUrl: z.string().url().optional().nullable(),
+    logoUrl: z.string().url().optional().nullable(),
+    startsAt: z.string().datetime().optional(),
+    endsAt: z.string().datetime().optional(),
+    registrationDeadline: z.string().datetime().optional(),
+    capacity: z.number().int().positive().optional(),
+    status: z.enum(["DRAFT", "REGISTRATION_OPEN", "SOLD_OUT", "LIVE", "COMPLETED", "CANCELLED"]).optional(),
+  });
+
+  const parsed = updateSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+    // ✅ Return a clean error message
+    const errors = parsed.error.flatten().fieldErrors;
+    const firstError = Object.values(errors).flat()[0];
+    return NextResponse.json(
+      { error: firstError || "Invalid form data" },
+      { status: 400 }
+    );
   }
+
   const body = parsed.data;
   const data: Record<string, unknown> = { ...body };
+  
+  // Convert date strings to Date objects
   if (body.startsAt) data.startsAt = new Date(body.startsAt);
   if (body.endsAt) data.endsAt = new Date(body.endsAt);
   if (body.registrationDeadline) data.registrationDeadline = new Date(body.registrationDeadline);
