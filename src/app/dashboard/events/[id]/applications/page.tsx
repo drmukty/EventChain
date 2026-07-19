@@ -61,7 +61,7 @@ export default function EventApplicationsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
-      <h1 className="font-display text-3xl font-semibold">Applications</h1>
+      <h1 className="font-display text-3xl font-semibold text-gray-900 dark:text-white">Applications</h1>
 
       <div className="mt-6 flex gap-2 flex-wrap">
         {["PENDING", "APPROVED", "REJECTED", "WAITLISTED"].map((s) => (
@@ -97,8 +97,8 @@ export default function EventApplicationsPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">{app.user.name ?? app.user.email}</p>
-                <p className="text-xs text-fg-muted">
+                <p className="font-medium text-gray-900 dark:text-white">{app.user.name ?? app.user.email}</p>
+                <p className="text-xs text-gray-500 dark:text-fg-muted">
                   {app.user.email}
                   {app.user.walletAddress && ` · ${app.user.walletAddress.slice(0, 6)}…${app.user.walletAddress.slice(-4)}`}
                 </p>
@@ -135,14 +135,14 @@ export default function EventApplicationsPage() {
               )}
             </div>
 
-            {/* Show the "Why attend?" reason if provided */}
+            {/* Show the "Why attend?" reason if provided - FIXED for light mode */}
             {app.reason && (
-              <div className="mt-3 rounded-lg bg-white/5 p-3 border border-white/5">
-                <div className="flex items-center gap-2 text-xs text-fg-muted">
+              <div className="mt-3 rounded-lg bg-gray-100 p-3 border border-gray-200 dark:bg-white/5 dark:border-white/5">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-fg-muted">
                   <MessageSquare size={14} />
                   <span className="font-medium">Why they want to attend:</span>
                 </div>
-                <p className="mt-1 text-sm text-gray-200 dark:text-gray-300">{app.reason}</p>
+                <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{app.reason}</p>
               </div>
             )}
           </motion.div>
