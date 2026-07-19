@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { MapPin, Calendar, Users, ShieldCheck, Share2, Check, X } from "lucide-react";
+import { MapPin, Calendar, Users, ShieldCheck, Share2, Check, X, Edit } from "lucide-react";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { data: session } = useSession();
   const [event, setEvent] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
@@ -107,6 +110,7 @@ export default function EventDetailPage() {
   if (!event) return <div className="mx-auto max-w-4xl px-6 py-24 text-fg-muted">Loading event…</div>;
 
   const seatsLeft = Math.max(0, event.capacity - event._count.applications);
+  const isOrganizer = session?.user && (session.user as any).id === event.organizerId;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
@@ -121,9 +125,22 @@ export default function EventDetailPage() {
       )}
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
-        <span className="text-xs font-medium uppercase tracking-wide text-base-400">{event.category}</span>
-        <h1 className="mt-2 font-display text-4xl font-semibold">{event.title}</h1>
-        <p className="mt-2 text-fg-muted">Hosted by {event.organizer?.name}</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <span className="text-xs font-medium uppercase tracking-wide text-base-400">{event.category}</span>
+            <h1 className="mt-2 font-display text-4xl font-semibold">{event.title}</h1>
+            <p className="mt-2 text-fg-muted">Hosted by {event.organizer?.name}</p>
+          </div>
+          {/* ✅ Edit button - only visible to organizer */}
+          {isOrganizer && (
+            <Link
+              href={`/dashboard/events/${id}/edit`}
+              className="flex items-center gap-2 rounded-full border border-base-500/30 px-5 py-2.5 text-sm font-medium text-base-400 hover:bg-base-500/10 transition-colors"
+            >
+              <Edit size={16} /> Edit Event
+            </Link>
+          )}
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-6 text-sm text-fg-muted">
           <span className="flex items-center gap-2"><Calendar size={16} /> {new Date(event.startsAt).toLocaleString()}</span>
