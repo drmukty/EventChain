@@ -53,41 +53,21 @@ export default function EditEventPage() {
     setError(null);
     setFieldErrors({});
 
-    // ✅ Validate description length
-    if (formData.description.length < 10) {
-      setFieldErrors({ description: "Description must be at least 10 characters" });
-      toast.error("Description must be at least 10 characters");
-      setSaving(false);
-      return;
-    }
-
-    // ✅ Validate dates
-    const endDate = new Date(formData.endsAt);
-    const deadline = new Date(formData.registrationDeadline);
-    const today = new Date();
-    const startDate = new Date(formData.endsAt); // We don't have start date in edit form
-
-    // ✅ Check if deadline is after end date (should be before)
-    if (deadline > endDate) {
-      setFieldErrors({ registrationDeadline: "Registration deadline must be before the end date" });
-      toast.error("Registration deadline must be before the end date");
-      setSaving(false);
-      return;
-    }
-
-    // ✅ Check if end date is in the past
-    if (endDate < today) {
-      setFieldErrors({ endsAt: "End date cannot be in the past" });
-      toast.error("End date cannot be in the past");
-      setSaving(false);
-      return;
-    }
+    // ✅ Description is now optional - remove validation
+    // if (formData.description.length < 10) { ... }
 
     try {
       const res = await fetch(`/api/events/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description || "", // send empty string if blank
+          venue: formData.venue,
+          endsAt: formData.endsAt,
+          registrationDeadline: formData.registrationDeadline,
+          capacity: formData.capacity,
+        }),
       });
 
       const data = await res.json();
@@ -100,18 +80,7 @@ export default function EditEventPage() {
             errorMessage = data.error;
           } else if (data.error.message) {
             errorMessage = data.error.message;
-          } else if (data.error.fieldErrors) {
-            const fieldErrors = Object.values(data.error.fieldErrors).flat();
-            errorMessage = fieldErrors.join(", ");
           }
-        }
-        
-        // ✅ Handle specific error types
-        if (errorMessage.includes("datetime") || errorMessage.includes("date")) {
-          errorMessage = "Please check your date and time. Make sure the dates are valid and in the correct order.";
-        }
-        if (errorMessage.includes("capacity")) {
-          errorMessage = "Capacity must be a positive number.";
         }
         
         setError(errorMessage);
@@ -135,7 +104,6 @@ export default function EditEventPage() {
       ...prev,
       [name]: name === "capacity" ? parseInt(value) || 0 : value,
     }));
-    // Clear errors when user starts typing
     if (error) setError(null);
     if (fieldErrors[name]) {
       setFieldErrors((prev) => ({ ...prev, [name]: "" }));
@@ -167,7 +135,6 @@ export default function EditEventPage() {
         <h1 className="font-display text-3xl font-semibold text-gray-900 dark:text-white">Edit Event</h1>
         <p className="mt-2 text-fg-muted">Update your event details.</p>
 
-        {/* ✅ Show general error */}
         {error && (
           <div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-red-400 text-sm">
             ❌ {error}
@@ -188,37 +155,21 @@ export default function EditEventPage() {
             />
           </div>
 
-          {/* Description */}
+          {/* Description - NOW OPTIONAL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Description <span className="text-gray-400">(optional)</span>
+            </label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleChange}
               rows={4}
-              required
-              className={`mt-1 w-full rounded-xl border px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 dark:text-white dark:placeholder:text-gray-400 ${
-                fieldErrors.description || (formData.description.length > 0 && formData.description.length < 10)
-                  ? "border-red-500 focus:ring-red-500 dark:border-red-500"
-                  : "border-gray-300 dark:border-gray-600 dark:bg-gray-800 bg-white"
-              }`}
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
             />
-            <div className="mt-1 flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">
-                {formData.description.length}/500 characters
-              </span>
-              {formData.description.length > 0 && formData.description.length < 10 && (
-                <span className="text-red-400">
-                  Need {10 - formData.description.length} more characters
-                </span>
-              )}
-              {formData.description.length >= 10 && (
-                <span className="text-green-400">✅ Good length</span>
-              )}
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {formData.description.length}/500 characters
             </div>
-            {fieldErrors.description && (
-              <p className="mt-1 text-sm text-red-500">{fieldErrors.description}</p>
-            )}
           </div>
 
           {/* Venue */}
@@ -243,16 +194,9 @@ export default function EditEventPage() {
               value={formData.endsAt}
               onChange={handleChange}
               required
-              className={`mt-1 w-full rounded-xl border px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 dark:text-white ${
-                fieldErrors.endsAt
-                  ? "border-red-500 focus:ring-red-500 dark:border-red-500"
-                  : "border-gray-300 dark:border-gray-600 dark:bg-gray-800 bg-white"
-              }`}
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
-            {fieldErrors.endsAt && (
-              <p className="mt-1 text-sm text-red-500">{fieldErrors.endsAt}</p>
-            )}
-            <p className="mt-1 text-xs text-gray-400">Must be after the start date and in the future</p>
+            <p className="mt-1 text-xs text-gray-400">Must be after the start date</p>
           </div>
 
           {/* Registration Deadline */}
@@ -264,16 +208,8 @@ export default function EditEventPage() {
               value={formData.registrationDeadline}
               onChange={handleChange}
               required
-              className={`mt-1 w-full rounded-xl border px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 dark:text-white ${
-                fieldErrors.registrationDeadline
-                  ? "border-red-500 focus:ring-red-500 dark:border-red-500"
-                  : "border-gray-300 dark:border-gray-600 dark:bg-gray-800 bg-white"
-              }`}
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
-            {fieldErrors.registrationDeadline && (
-              <p className="mt-1 text-sm text-red-500">{fieldErrors.registrationDeadline}</p>
-            )}
-            <p className="mt-1 text-xs text-gray-400">Must be before the end date</p>
           </div>
 
           {/* Capacity */}
