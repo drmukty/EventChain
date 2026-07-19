@@ -27,13 +27,11 @@ const EVENT_X = 421;
 const EVENT_Y = 270;
 const EVENT_MAX_WIDTH = 600;
 
-// --- Date, Venue, Check‑in time (left‑aligned) ---
+// --- Date & Venue (left‑aligned) ---
 const DATE_X = 100;
 const DATE_Y = 200;
 const VENUE_X = 100;
 const VENUE_Y = 175;
-const TIME_X = 100;
-const TIME_Y = 150;
 
 // --- Certificate ID & Issue date (left‑aligned) ---
 const CERT_ID_X = 100;
@@ -41,10 +39,10 @@ const CERT_ID_Y = 80;
 const ISSUE_DATE_X = 100;
 const ISSUE_DATE_Y = 55;
 
-// --- QR code (top‑right corner of the placeholder) ---
-const QR_X = 680;
-const QR_Y = 420;
-const QR_SIZE = 110;          // square size
+// --- QR code - MOVED DOWN near "VERIFY CERTIFICATE" text ---
+const QR_X = 680;             // top‑left X
+const QR_Y = 130;             // MOVED DOWN - now near the bottom of the certificate
+const QR_SIZE = 100;          // REDUCED SIZE
 
 // --- Font sizes (auto‑resizing will reduce them if needed) ---
 const DEFAULT_NAME_SIZE = 28;
@@ -184,18 +182,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // --- Check‑in Time (left‑aligned) ---
-  const checkInTime = checkIn.checkedInAt.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  page.drawText(checkInTime, {
-    x: TIME_X,
-    y: TIME_Y,
-    size: DEFAULT_LABEL_SIZE,
-    font: regularFont,
-    color: rgb(0.3, 0.3, 0.3),
-  });
+  // --- CHECK-IN TIME REMOVED - no longer drawn ---
 
   // --- Certificate ID (left‑aligned) ---
   page.drawText(`#${certId}`, {
@@ -220,7 +207,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- QR Code (drawn inside its placeholder) ---
+  // --- QR Code - MOVED DOWN and REDUCED in size ---
   const qrBuffer = await QRCode.toBuffer(verifyUrl, {
     width: QR_SIZE,
     margin: 0,
