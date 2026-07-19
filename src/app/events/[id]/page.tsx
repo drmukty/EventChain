@@ -32,16 +32,11 @@ export default function EventDetailPage() {
   }, [id]);
 
   async function handleApplySubmit() {
-    if (reason.trim().length < 10) {
-      toast.error("Please write at least 10 characters explaining why you want to attend.");
-      return;
-    }
-
     setSubmitting(true);
     try {
       const res = await fetch(`/api/events/${id}/apply`, {
         method: "POST",
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({ reason: reason.trim() || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not apply");
@@ -182,7 +177,10 @@ export default function EventDetailPage() {
             className="relative w-full max-w-md rounded-2xl bg-white p-6 dark:bg-gray-900 shadow-2xl"
           >
             <button
-              onClick={() => setShowApplyModal(false)}
+              onClick={() => {
+                setShowApplyModal(false);
+                setReason("");
+              }}
               className="absolute right-4 top-4 rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
               <X size={20} className="text-gray-600 dark:text-gray-300" />
@@ -190,31 +188,34 @@ export default function EventDetailPage() {
 
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Apply to attend</h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Tell the organizer why you want to attend this event.
+              Tell the organizer why you want to attend this event. (Optional)
             </p>
 
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Why do you want to attend? <span className="text-red-500">*</span>
+                Why do you want to attend? <span className="text-gray-400">(optional)</span>
               </label>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="I'm interested in this event because..."
+                placeholder="I'm interested in this event because... (optional)"
                 rows={4}
                 className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
               />
               <div className="mt-1 flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>{reason.length}/500 characters</span>
-                <span className={reason.length >= 10 ? "text-green-400" : "text-amber-400"}>
-                  {reason.length === 0 ? "Minimum 10 characters" : reason.length < 10 ? `${10 - reason.length} more needed` : "✅ Good length"}
+                <span className="text-gray-400">
+                  {reason.length === 0 ? "Optional" : `${reason.length} characters`}
                 </span>
               </div>
             </div>
 
             <div className="mt-6 flex gap-3">
               <button
-                onClick={() => setShowApplyModal(false)}
+                onClick={() => {
+                  setShowApplyModal(false);
+                  setReason("");
+                }}
                 className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
               >
                 Cancel
