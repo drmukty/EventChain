@@ -1,5 +1,3 @@
-// src/app/api/certificates/[eventId]/route.ts
-
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -9,97 +7,71 @@ import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase";
 import { notify } from "@/lib/notifications";
 
-// =============================================================
-//  LAYOUT CONSTANTS
-//  All coordinates are in PDF points (1/72 inch), origin bottom‑left.
-//  Page size: 842 x 595 (landscape A4).
-// =============================================================
-
-const NAME_X = 421;
-const NAME_Y = 380;
-const NAME_MAX_WIDTH = 600;
-const EVENT_X = 421;
-const EVENT_Y = 300;
-const EVENT_MAX_WIDTH = 600;
-const CERT_ID_X = 100;
-const CERT_ID_Y = 80;
-const ISSUE_DATE_X = 100;
-const ISSUE_DATE_Y = 55;
-const QR_X = 680;
-const QR_Y = 130;
-const QR_SIZE = 100;
-
-const DEFAULT_NAME_SIZE = 28;
-const DEFAULT_TITLE_SIZE = 22;
-const MIN_FONT_SIZE = 10;
-
-// =============================================================
-//  HELPER: Shrink text to fit within a given width
-// =============================================================
-
-function fitTextToWidth(
-  text: string,
-  font: any,
-  maxWidth: number,
-  initialSize: number
-): { text: string; size: number } {
-  let size = initialSize;
-  let width = font.widthOfTextAtSize(text, size);
-  while (width > maxWidth && size > MIN_FONT_SIZE) {
-    size -= 0.5;
-    width = font.widthOfTextAtSize(text, size);
-  }
-  return { text, size };
-}
-
-// =============================================================
-//  API ROUTE
-// =============================================================
-
 export async function POST(_req: Request, { params }: { params: { eventId: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const userId = (session.user as any).id;
   const eventId = params.eventId;
 
-  // 1. Verify the user has checked in for this event
+  // 1️⃣ Check if user has a valid check-in
   const checkIn = await prisma.checkIn.findFirst({
     where: { eventId, userId },
     include: { event: true, user: true },
   });
+
   if (!checkIn) {
     return NextResponse.json({ error: "No verified attendance found for this event" }, { status: 404 });
   }
 
-  // 2. Delete any existing certificate
-  const existing = await prisma.certificate.findFirst({
+  // 2️⃣ Delete OLD certificate from Supabase Storage (if exists)
+  const existingCert = await prisma.certificate.findFirst({
     where: { eventId, userId },
   });
-  if (existing) {
-    await prisma.certificate.delete({ where: { id: existing.id } });
-    await supabaseAdmin.storage
-      .from("EventChain")
-      .remove([`certificates/${eventId}/${userId}.pdf`])
-      .catch(() => {});
+
+  if (existingCert && existingCert.pdfUrl) {
+    try {
+      // Extract the file path from the URL
+      const urlParts = existingCert.pdfUrl.split("/");
+      const filePath = urlParts.slice(urlParts.indexOf("certificates")).join("/");
+      // Or use this alternative: extract path after /storage/v1/object/public/EventChain/
+      const pathMatch = existingCert.pdfUrl.match(/\/EventChain\/(.+)$/);
+      const pathToDelete = pathMatch ? pathMatch[1] : null;
+
+      if (pathToDelete) {
+        const { error: deleteError } = await supabaseAdmin.storage
+          .from("EventChain")
+          .remove([pathToDelete]);
+        if (deleteError) {
+          console.warn("Failed to delete old certificate:", deleteError.message);
+          // Continue anyway – the new one will overwrite or we can still proceed
+        }
+      }
+    } catch (err) {
+      console.warn("Error deleting old certificate:", err);
+      // Continue – we'll just overwrite or create a new one
+    }
   }
 
-  // 3. Generate certificate data
+  // 3️⃣ Generate a unique certificate ID
   const certId = `EVT-${eventId.slice(0, 8).toUpperCase()}-${userId.slice(0, 6).toUpperCase()}`;
+
+  // 4️⃣ Build verification URL
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
   const verifyUrl = `${baseUrl}/verify/${certId}`;
 
-  // 4. Create a new PDF (draw everything from scratch – no template needed)
+  // 5️⃣ Create PDF document
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([842, 595]); // landscape A4
+  const page = pdfDoc.addPage([842, 595]);
   const { width, height } = page.getSize();
 
-  // 5. Embed fonts
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
 
-  // 6. Draw decorative border
+  // 6️⃣ Draw decorative borders
   const margin = 40;
   page.drawRectangle({
     x: margin,
@@ -107,9 +79,8 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     width: width - 2 * margin,
     height: height - 2 * margin,
     borderColor: rgb(0.1, 0.3, 0.6),
-    borderWidth: 3,
+    borderWidth: 2,
   });
-  // Inner border
   page.drawRectangle({
     x: margin + 10,
     y: margin + 10,
@@ -119,7 +90,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     borderWidth: 1,
   });
 
-  // 7. Header: "CERTIFICATE OF ATTENDANCE"
+  // 7️⃣ Header
   const title = "CERTIFICATE OF ATTENDANCE";
   const titleSize = 32;
   const titleWidth = boldFont.widthOfTextAtSize(title, titleSize);
@@ -131,7 +102,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.05, 0.15, 0.35),
   });
 
-  // 8. Subtitle
+  // 8️⃣ Subtitle
   const subText = "This certifies that";
   const subSize = 16;
   const subWidth = regularFont.widthOfTextAtSize(subText, subSize);
@@ -143,61 +114,59 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // 9. Attendee Name
+  // 9️⃣ Attendee name
   const attendeeName = checkIn.user.name ?? checkIn.user.email;
-  const nameResult = fitTextToWidth(attendeeName, boldFont, NAME_MAX_WIDTH, DEFAULT_NAME_SIZE);
-  const nameWidth = boldFont.widthOfTextAtSize(nameResult.text, nameResult.size);
-  page.drawText(nameResult.text, {
-    x: NAME_X - nameWidth / 2,
-    y: NAME_Y,
-    size: nameResult.size,
+  const nameSize = 32;
+  const nameWidth = boldFont.widthOfTextAtSize(attendeeName, nameSize);
+  page.drawText(attendeeName, {
+    x: (width - nameWidth) / 2,
+    y: height - 230,
+    size: nameSize,
     font: boldFont,
     color: rgb(0.1, 0.2, 0.5),
   });
 
-  // 10. "has successfully attended"
-  const attendedText = "has successfully attended";
+  // 🔟 Event details
+  const attendedText = "has successfully attended and participated in";
   const attendedSize = 14;
   const attendedWidth = regularFont.widthOfTextAtSize(attendedText, attendedSize);
   page.drawText(attendedText, {
     x: (width - attendedWidth) / 2,
-    y: height - 260,
+    y: height - 270,
     size: attendedSize,
     font: regularFont,
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // 11. Event Title
   const eventTitle = checkIn.event.title;
-  const titleResult = fitTextToWidth(eventTitle, boldFont, EVENT_MAX_WIDTH, DEFAULT_TITLE_SIZE);
-  const titleWidth2 = boldFont.widthOfTextAtSize(titleResult.text, titleResult.size);
-  page.drawText(titleResult.text, {
-    x: EVENT_X - titleWidth2 / 2,
-    y: EVENT_Y,
-    size: titleResult.size,
+  const eventSize = 22;
+  const eventWidth = boldFont.widthOfTextAtSize(eventTitle, eventSize);
+  page.drawText(eventTitle, {
+    x: (width - eventWidth) / 2,
+    y: height - 310,
+    size: eventSize,
     font: boldFont,
     color: rgb(0.05, 0.1, 0.2),
   });
 
-  // 12. Date and Venue
+  // 1️⃣1️⃣ Date and venue
   const dateStr = checkIn.event.startsAt.toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  const venueStr = checkIn.event.venue;
-  const detailsText = `Date: ${dateStr}  |  Venue: ${venueStr}`;
+  const detailsText = `Date: ${dateStr}  |  Venue: ${checkIn.event.venue}`;
   const detailsSize = 12;
   const detailsWidth = regularFont.widthOfTextAtSize(detailsText, detailsSize);
   page.drawText(detailsText, {
     x: (width - detailsWidth) / 2,
-    y: height - 320,
+    y: height - 350,
     size: detailsSize,
     font: regularFont,
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // 13. Check-in time
+  // 1️⃣2️⃣ Check-in time
   const checkInTime = checkIn.checkedInAt.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -207,13 +176,13 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const timeWidth = regularFont.widthOfTextAtSize(timeText, timeSize);
   page.drawText(timeText, {
     x: (width - timeWidth) / 2,
-    y: height - 345,
+    y: height - 375,
     size: timeSize,
     font: regularFont,
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // 14. "VERIFIED" badge
+  // 1️⃣3️⃣ "VERIFIED" badge
   const badgeRadius = 30;
   const badgeX = width - 120;
   const badgeY = 120;
@@ -233,57 +202,52 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(1, 1, 1),
   });
 
-  // 15. Certificate ID
+  // 1️⃣4️⃣ Certificate ID
   page.drawText(`Certificate ID: ${certId}`, {
-    x: CERT_ID_X,
-    y: CERT_ID_Y,
+    x: 80,
+    y: 70,
     size: 10,
     font: regularFont,
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // 16. Issue Date
-  const issuedDate = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  page.drawText(`Issued on: ${issuedDate}`, {
-    x: ISSUE_DATE_X,
-    y: ISSUE_DATE_Y,
+  // 1️⃣5️⃣ Issue date
+  page.drawText(`Issued on: ${new Date().toLocaleDateString()}`, {
+    x: 80,
+    y: 50,
     size: 10,
     font: regularFont,
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // 17. QR Code
+  // 1️⃣6️⃣ QR code
   const qrBuffer = await QRCode.toBuffer(verifyUrl, {
-    width: QR_SIZE,
-    margin: 0,
+    width: 120,
+    margin: 1,
     errorCorrectionLevel: "H",
   });
   const qrImage = await pdfDoc.embedPng(qrBuffer);
+  const qrDims = qrImage.scale(0.8);
   page.drawImage(qrImage, {
-    x: QR_X,
-    y: QR_Y,
-    width: QR_SIZE,
-    height: QR_SIZE,
+    x: width - 140,
+    y: 60,
+    width: qrDims.width,
+    height: qrDims.height,
   });
 
-  // 18. Signature (event name in cursive)
+  // 1️⃣7️⃣ Signature (event name)
   const signatureText = eventTitle;
-  const sigSize = 16;
-  const sigWidth = italicFont.widthOfTextAtSize(signatureText, sigSize);
+  const sigSize = 18;
+  const sigWidth = timesItalic.widthOfTextAtSize(signatureText, sigSize);
   const sigX = width - 140 - sigWidth - 10;
   const sigY = 140;
   page.drawText(signatureText, {
     x: sigX,
     y: sigY,
     size: sigSize,
-    font: italicFont,
+    font: timesItalic,
     color: rgb(0.1, 0.1, 0.3),
   });
-  // Underline
   page.drawLine({
     start: { x: sigX, y: sigY - 5 },
     end: { x: sigX + sigWidth, y: sigY - 5 },
@@ -291,19 +255,20 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.2, 0.2, 0.4),
   });
 
-  // 19. Save PDF
+  // 1️⃣8️⃣ Save PDF
   const pdfBytes = await pdfDoc.save();
 
-  // 20. Upload to Supabase
-  const uploadPath = `certificates/${eventId}/${userId}.pdf`;
+  // 1️⃣9️⃣ Upload to Supabase
+  const path = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from("EventChain")
-    .upload(uploadPath, Buffer.from(pdfBytes), {
+    .upload(path, Buffer.from(pdfBytes), {
       contentType: "application/pdf",
-      upsert: true,
+      upsert: true, // ✅ This overwrites the old file if it exists
     });
 
   if (uploadError) {
+    console.error("Upload error:", uploadError);
     return NextResponse.json(
       { error: `Failed to store certificate: ${uploadError.message}` },
       { status: 500 }
@@ -312,11 +277,22 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
 
   const { data: publicUrlData } = supabaseAdmin.storage
     .from("EventChain")
-    .getPublicUrl(uploadPath);
+    .getPublicUrl(path);
 
-  // 21. Create certificate record
-  const certificate = await prisma.certificate.create({
-    data: {
+  // 2️⃣0️⃣ Create or update certificate record in DB
+  const certificate = await prisma.certificate.upsert({
+    where: {
+      eventId_userId: {
+        eventId,
+        userId,
+      },
+    },
+    update: {
+      certificateId: certId,
+      pdfUrl: publicUrlData.publicUrl,
+      issuedAt: new Date(),
+    },
+    create: {
       certificateId: certId,
       eventId,
       userId,
@@ -325,7 +301,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     },
   });
 
-  // 22. Send notification
+  // 2️⃣1️⃣ Notify user
   await notify(userId, {
     type: "CERTIFICATE_READY",
     title: "Certificate ready",
