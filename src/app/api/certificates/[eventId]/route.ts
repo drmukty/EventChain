@@ -8,40 +8,29 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase";
 import { notify } from "@/lib/notifications";
-import fs from "fs";
-import path from "path";
 
 // =============================================================
-//  LAYOUT CONSTANTS – ADJUST THESE TO MATCH YOUR TEMPLATE
+//  LAYOUT CONSTANTS
 //  All coordinates are in PDF points (1/72 inch), origin bottom‑left.
 //  Page size: 842 x 595 (landscape A4).
 // =============================================================
 
-// --- Attendee name (centered) ---
-const NAME_X = 421;           // horizontal center of the name line
-const NAME_Y = 340;           // vertical position from bottom
-const NAME_MAX_WIDTH = 600;   // max width before shrinking
-
-// --- Event title (centered) - MOVED DOWN further ---
+const NAME_X = 421;
+const NAME_Y = 380;
+const NAME_MAX_WIDTH = 600;
 const EVENT_X = 421;
-const EVENT_Y = 240;          // MOVED DOWN from 255 to 240 (another 15 points)
+const EVENT_Y = 300;
 const EVENT_MAX_WIDTH = 600;
-
-// --- Certificate ID & Issue date (left‑aligned) ---
 const CERT_ID_X = 100;
 const CERT_ID_Y = 80;
 const ISSUE_DATE_X = 100;
 const ISSUE_DATE_Y = 55;
-
-// --- QR code ---
 const QR_X = 680;
 const QR_Y = 130;
 const QR_SIZE = 100;
 
-// --- Font sizes (auto‑resizing will reduce them if needed) ---
 const DEFAULT_NAME_SIZE = 28;
 const DEFAULT_TITLE_SIZE = 22;
-const DEFAULT_LABEL_SIZE = 16;
 const MIN_FONT_SIZE = 10;
 
 // =============================================================
@@ -83,7 +72,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     return NextResponse.json({ error: "No verified attendance found for this event" }, { status: 404 });
   }
 
-  // 2. Delete any existing certificate (database + Supabase file)
+  // 2. Delete any existing certificate
   const existing = await prisma.certificate.findFirst({
     where: { eventId, userId },
   });
@@ -100,7 +89,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
   const verifyUrl = `${baseUrl}/verify/${certId}`;
 
-  // 4. Create a new PDF
+  // 4. Create a new PDF (draw everything from scratch – no template needed)
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([842, 595]); // landscape A4
   const { width, height } = page.getSize();
@@ -108,27 +97,53 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   // 5. Embed fonts
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  // 6. Load the PNG template and draw it as the background
-  const templatePath = path.join(
-    process.cwd(),
-    "public",
-    "certificates",
-    "certificate-template.png"
-  );
-  if (!fs.existsSync(templatePath)) {
-    return NextResponse.json(
-      { error: "Certificate template not found at public/certificates/certificate-template.png" },
-      { status: 500 }
-    );
-  }
-  const templateBytes = fs.readFileSync(templatePath);
-  const templateImage = await pdfDoc.embedPng(templateBytes);
-  page.drawImage(templateImage, { x: 0, y: 0, width, height });
+  // 6. Draw decorative border
+  const margin = 40;
+  page.drawRectangle({
+    x: margin,
+    y: margin,
+    width: width - 2 * margin,
+    height: height - 2 * margin,
+    borderColor: rgb(0.1, 0.3, 0.6),
+    borderWidth: 3,
+  });
+  // Inner border
+  page.drawRectangle({
+    x: margin + 10,
+    y: margin + 10,
+    width: width - 2 * (margin + 10),
+    height: height - 2 * (margin + 10),
+    borderColor: rgb(0.2, 0.4, 0.7),
+    borderWidth: 1,
+  });
 
-  // 7. Draw ONLY the dynamic data (no static text from the template)
+  // 7. Header: "CERTIFICATE OF ATTENDANCE"
+  const title = "CERTIFICATE OF ATTENDANCE";
+  const titleSize = 32;
+  const titleWidth = boldFont.widthOfTextAtSize(title, titleSize);
+  page.drawText(title, {
+    x: (width - titleWidth) / 2,
+    y: height - 130,
+    size: titleSize,
+    font: boldFont,
+    color: rgb(0.05, 0.15, 0.35),
+  });
 
-  // --- Attendee Name (bold, centered, auto‑resized) ---
+  // 8. Subtitle
+  const subText = "This certifies that";
+  const subSize = 16;
+  const subWidth = regularFont.widthOfTextAtSize(subText, subSize);
+  page.drawText(subText, {
+    x: (width - subWidth) / 2,
+    y: height - 180,
+    size: subSize,
+    font: regularFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+
+  // 9. Attendee Name
   const attendeeName = checkIn.user.name ?? checkIn.user.email;
   const nameResult = fitTextToWidth(attendeeName, boldFont, NAME_MAX_WIDTH, DEFAULT_NAME_SIZE);
   const nameWidth = boldFont.widthOfTextAtSize(nameResult.text, nameResult.size);
@@ -140,46 +155,108 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.1, 0.2, 0.5),
   });
 
-  // --- Event Title (bold, centered, auto‑resized) - MOVED DOWN ---
+  // 10. "has successfully attended"
+  const attendedText = "has successfully attended";
+  const attendedSize = 14;
+  const attendedWidth = regularFont.widthOfTextAtSize(attendedText, attendedSize);
+  page.drawText(attendedText, {
+    x: (width - attendedWidth) / 2,
+    y: height - 260,
+    size: attendedSize,
+    font: regularFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+
+  // 11. Event Title
   const eventTitle = checkIn.event.title;
   const titleResult = fitTextToWidth(eventTitle, boldFont, EVENT_MAX_WIDTH, DEFAULT_TITLE_SIZE);
-  const titleWidth = boldFont.widthOfTextAtSize(titleResult.text, titleResult.size);
+  const titleWidth2 = boldFont.widthOfTextAtSize(titleResult.text, titleResult.size);
   page.drawText(titleResult.text, {
-    x: EVENT_X - titleWidth / 2,
+    x: EVENT_X - titleWidth2 / 2,
     y: EVENT_Y,
     size: titleResult.size,
     font: boldFont,
     color: rgb(0.05, 0.1, 0.2),
   });
 
-  // --- DATE IN THE MIDDLE - REMOVED ---
+  // 12. Date and Venue
+  const dateStr = checkIn.event.startsAt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const venueStr = checkIn.event.venue;
+  const detailsText = `Date: ${dateStr}  |  Venue: ${venueStr}`;
+  const detailsSize = 12;
+  const detailsWidth = regularFont.widthOfTextAtSize(detailsText, detailsSize);
+  page.drawText(detailsText, {
+    x: (width - detailsWidth) / 2,
+    y: height - 320,
+    size: detailsSize,
+    font: regularFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
 
-  // --- VENUE - COMPLETELY REMOVED ---
-
-  // --- Certificate ID (left‑aligned) ---
-  page.drawText(`#${certId}`, {
-    x: CERT_ID_X,
-    y: CERT_ID_Y,
-    size: 12,
+  // 13. Check-in time
+  const checkInTime = checkIn.checkedInAt.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const timeText = `Checked in at: ${checkInTime} (UTC)`;
+  const timeSize = 11;
+  const timeWidth = regularFont.widthOfTextAtSize(timeText, timeSize);
+  page.drawText(timeText, {
+    x: (width - timeWidth) / 2,
+    y: height - 345,
+    size: timeSize,
     font: regularFont,
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- Issue Date (left‑aligned) ---
+  // 14. "VERIFIED" badge
+  const badgeRadius = 30;
+  const badgeX = width - 120;
+  const badgeY = 120;
+  page.drawCircle({
+    x: badgeX,
+    y: badgeY,
+    size: badgeRadius,
+    color: rgb(0.1, 0.6, 0.2),
+    borderColor: rgb(0.1, 0.4, 0.1),
+    borderWidth: 2,
+  });
+  page.drawText("VERIFIED", {
+    x: badgeX - 25,
+    y: badgeY - 6,
+    size: 12,
+    font: boldFont,
+    color: rgb(1, 1, 1),
+  });
+
+  // 15. Certificate ID
+  page.drawText(`Certificate ID: ${certId}`, {
+    x: CERT_ID_X,
+    y: CERT_ID_Y,
+    size: 10,
+    font: regularFont,
+    color: rgb(0.3, 0.3, 0.3),
+  });
+
+  // 16. Issue Date
   const issuedDate = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  page.drawText(`Issued: ${issuedDate}`, {
+  page.drawText(`Issued on: ${issuedDate}`, {
     x: ISSUE_DATE_X,
     y: ISSUE_DATE_Y,
-    size: 12,
+    size: 10,
     font: regularFont,
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- QR Code ---
+  // 17. QR Code
   const qrBuffer = await QRCode.toBuffer(verifyUrl, {
     width: QR_SIZE,
     margin: 0,
@@ -193,10 +270,31 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     height: QR_SIZE,
   });
 
-  // 8. Serialize the PDF
+  // 18. Signature (event name in cursive)
+  const signatureText = eventTitle;
+  const sigSize = 16;
+  const sigWidth = italicFont.widthOfTextAtSize(signatureText, sigSize);
+  const sigX = width - 140 - sigWidth - 10;
+  const sigY = 140;
+  page.drawText(signatureText, {
+    x: sigX,
+    y: sigY,
+    size: sigSize,
+    font: italicFont,
+    color: rgb(0.1, 0.1, 0.3),
+  });
+  // Underline
+  page.drawLine({
+    start: { x: sigX, y: sigY - 5 },
+    end: { x: sigX + sigWidth, y: sigY - 5 },
+    thickness: 1,
+    color: rgb(0.2, 0.2, 0.4),
+  });
+
+  // 19. Save PDF
   const pdfBytes = await pdfDoc.save();
 
-  // 9. Upload to Supabase
+  // 20. Upload to Supabase
   const uploadPath = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from("EventChain")
@@ -216,7 +314,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     .from("EventChain")
     .getPublicUrl(uploadPath);
 
-  // 10. Create the certificate record in the database
+  // 21. Create certificate record
   const certificate = await prisma.certificate.create({
     data: {
       certificateId: certId,
@@ -227,7 +325,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     },
   });
 
-  // 11. Send a notification
+  // 22. Send notification
   await notify(userId, {
     type: "CERTIFICATE_READY",
     title: "Certificate ready",
