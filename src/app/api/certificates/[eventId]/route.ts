@@ -29,19 +29,14 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   });
   if (existing) return NextResponse.json({ certificate: existing });
 
-  // --- 1. Generate a unique certificate ID
   const certId = `EVT-${eventId.slice(0, 8).toUpperCase()}-${userId.slice(0, 6).toUpperCase()}`;
-
-  // --- 2. Build verification URL
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
   const verifyUrl = `${baseUrl}/verify/${certId}`;
 
-  // --- 3. Create a PDF document (A4 landscape)
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([842, 595]);
   const { width, height } = page.getSize();
 
-  // --- Helper to center text horizontally
   const centerText = (
     text: string,
     font: any,
@@ -59,74 +54,51 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     });
   };
 
-  // --- Watermark logo
-  const logoPath = path.join(process.cwd(), "public", "images", "eventchain-logo.png");
-  if (fs.existsSync(logoPath)) {
-    const logoBytes = fs.readFileSync(logoPath);
-    const logo = await pdfDoc.embedPng(logoBytes);
-    page.drawImage(logo, {
-      x: width / 2 - 170,
-      y: height / 2 - 170,
-      width: 340,
-      height: 340,
-      opacity: 0.08,
-    });
-  }
+  const getDynamicFontSize = (
+    text: string,
+    font: any,
+    maxWidth: number,
+    minSize: number = 10,
+    maxSize: number = 32
+  ): number => {
+    let size = maxSize;
+    while (size > minSize) {
+      const w = font.widthOfTextAtSize(text, size);
+      if (w <= maxWidth) break;
+      size -= 1;
+    }
+    return size;
+  };
 
-  // --- 4. Embed fonts
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-  const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
 
-  // --- 5. Draw decorative double border
-  const margin = 40;
-  const borderWidth = 2;
-  const innerMargin = 50;
-
-  // Outer border
-  page.drawRectangle({
-    x: margin,
-    y: margin,
-    width: width - 2 * margin,
-    height: height - 2 * margin,
-    borderColor: rgb(0.1, 0.3, 0.6),
-    borderWidth: borderWidth,
-  });
-  // Inner border (thinner)
-  page.drawRectangle({
-    x: margin + 10,
-    y: margin + 10,
-    width: width - 2 * (margin + 10),
-    height: height - 2 * (margin + 10),
-    borderColor: rgb(0.2, 0.4, 0.7),
-    borderWidth: 1,
-  });
-
-  // --- 6. Header: "CERTIFICATE OF ATTENDANCE"
-  centerText("CERTIFICATE OF ATTENDANCE", boldFont, 32, height - 130, rgb(0.05, 0.15, 0.35));
-
-  // --- 7. Subtitle: "This certifies that"
-  centerText("This certifies that", regularFont, 16, height - 180, rgb(0.2, 0.2, 0.2));
-
-  // --- 8. Attendee name (large, bold, blue) – centered with helper
-  const attendeeName = checkIn.user.name ?? checkIn.user.email;
-  centerText(attendeeName, boldFont, 32, 312, rgb(0.1, 0.2, 0.5));
-
-  // --- 9. Event details: "successfully attended and participated in"
-  centerText(
-    "has successfully attended and participated in",
-    regularFont,
-    14,
-    height - 270,
-    rgb(0.2, 0.2, 0.2)
+  const templatePath = path.join(
+    process.cwd(),
+    "public",
+    "certificates",
+    "certificate-template.png"
   );
+  if (!fs.existsSync(templatePath)) {
+    return NextResponse.json(
+      { error: "Certificate template not found." },
+      { status: 500 }
+    );
+  }
 
-  // --- 10. Event title (larger, bold) – centered with helper
+  const templateBytes = fs.readFileSync(templatePath);
+  const templateImage = await pdfDoc.embedPng(templateBytes);
+  page.drawImage(templateImage, { x: 0, y: 0, width, height });
+
+  const attendeeName = checkIn.user.name ?? checkIn.user.email;
+  const maxTextWidth = width * 0.8;
+  const nameSize = getDynamicFontSize(attendeeName, boldFont, maxTextWidth, 16, 32);
+  centerText(attendeeName, boldFont, nameSize, 300, rgb(0.1, 0.2, 0.5));
+
   const eventTitle = checkIn.event.title;
-  centerText(eventTitle, boldFont, 22, 380, rgb(0.05, 0.1, 0.2));
+  const titleSize = getDynamicFontSize(eventTitle, boldFont, maxTextWidth, 14, 22);
+  centerText(eventTitle, boldFont, titleSize, 375, rgb(0.05, 0.1, 0.2));
 
-  // --- 11. Date and venue
   const dateStr = checkIn.event.startsAt.toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -136,7 +108,6 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const detailsText = `Date: ${dateStr}  |  Venue: ${venueStr}`;
   centerText(detailsText, regularFont, 12, height - 350, rgb(0.2, 0.2, 0.2));
 
-  // --- 12. Check-in time – centered with helper
   const checkInTime = checkIn.checkedInAt.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -144,27 +115,6 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const timeText = `Checked in at: ${checkInTime} (UTC)`;
   centerText(timeText, regularFont, 11, 475, rgb(0.3, 0.3, 0.3));
 
-  // --- 13. "VERIFIED" badge (circle with text)
-  const badgeRadius = 30;
-  const badgeX = width - 120;
-  const badgeY = 120;
-  page.drawCircle({
-    x: badgeX,
-    y: badgeY,
-    size: badgeRadius,
-    color: rgb(0.1, 0.6, 0.2),
-    borderColor: rgb(0.1, 0.4, 0.1),
-    borderWidth: 2,
-  });
-  page.drawText("VERIFIED", {
-    x: badgeX - 25,
-    y: badgeY - 6,
-    size: 12,
-    font: boldFont,
-    color: rgb(1, 1, 1),
-  });
-
-  // --- 14. Certificate ID (bottom left)
   const certIdText = `Certificate ID: ${certId}`;
   const idSize = 10;
   page.drawText(certIdText, {
@@ -175,8 +125,11 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- 15. Issue date (bottom left)
-  const issuedText = `Issued on: ${new Date().toLocaleDateString()}`;
+  const issuedText = `Issued on: ${new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })}`;
   page.drawText(issuedText, {
     x: 80,
     y: 50,
@@ -185,16 +138,18 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- 16. QR code (fixed position and size)
-  const qrBuffer = await QRCode.toBuffer(verifyUrl, {
-    width: 120,
-    margin: 1,
-    errorCorrectionLevel: "H",
-  });
-  const qrImage = await pdfDoc.embedPng(qrBuffer);
+  // --- QR code – adjust these numbers to match your template's placeholder
   const qrX = 690;
   const qrY = 415;
   const qrSize = 105;
+
+  // ✅ QR generation now uses qrSize and margin: 0
+  const qrBuffer = await QRCode.toBuffer(verifyUrl, {
+    width: qrSize,
+    margin: 0,
+    errorCorrectionLevel: "H",
+  });
+  const qrImage = await pdfDoc.embedPng(qrBuffer);
   page.drawImage(qrImage, {
     x: qrX,
     y: qrY,
@@ -202,31 +157,8 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     height: qrSize,
   });
 
-  // --- 17. Signature: centered under the event title
-  const signatureText = eventTitle;
-  const sigSize = 18;
-  const sigWidth = timesItalic.widthOfTextAtSize(signatureText, sigSize);
-  const sigX = (width - sigWidth) / 2;
-  const sigY = 505;
-  page.drawText(signatureText, {
-    x: sigX,
-    y: sigY,
-    size: sigSize,
-    font: timesItalic,
-    color: rgb(0.1, 0.1, 0.3),
-  });
-  // Draw a line under signature
-  page.drawLine({
-    start: { x: sigX, y: sigY - 5 },
-    end: { x: sigX + sigWidth, y: sigY - 5 },
-    thickness: 1,
-    color: rgb(0.2, 0.2, 0.4),
-  });
-
-  // --- 18. Save PDF
   const pdfBytes = await pdfDoc.save();
 
-  // --- 19. Upload to Supabase
   const uploadPath = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from("EventChain")
@@ -240,7 +172,6 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     .from("EventChain")
     .getPublicUrl(uploadPath);
 
-  // --- 20. Create certificate record in DB
   const certificate = await prisma.certificate.create({
     data: {
       certificateId: certId,
@@ -251,7 +182,6 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     },
   });
 
-  // --- 21. Notify user
   await notify(userId, {
     type: "CERTIFICATE_READY",
     title: "Certificate ready",
