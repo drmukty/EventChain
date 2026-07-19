@@ -22,14 +22,10 @@ const NAME_X = 421;           // horizontal center of the name line
 const NAME_Y = 340;           // vertical position from bottom
 const NAME_MAX_WIDTH = 600;   // max width before shrinking
 
-// --- Event title (centered) - MOVED DOWN closer to the golden line ---
+// --- Event title (centered) - MOVED DOWN further ---
 const EVENT_X = 421;
-const EVENT_Y = 255;          // MOVED DOWN from 270 to 255 (closer to golden line)
+const EVENT_Y = 240;          // MOVED DOWN from 255 to 240 (another 15 points)
 const EVENT_MAX_WIDTH = 600;
-
-// --- Venue (left‑aligned) ---
-const VENUE_X = 100;
-const VENUE_Y = 175;
 
 // --- Certificate ID & Issue date (left‑aligned) ---
 const CERT_ID_X = 100;
@@ -156,17 +152,9 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.05, 0.1, 0.2),
   });
 
-  // --- DATE IN THE MIDDLE - COMPLETELY REMOVED ---
+  // --- DATE IN THE MIDDLE - REMOVED ---
 
-  // --- Venue (left‑aligned) ---
-  const venueStr = checkIn.event.venue || "Online";
-  page.drawText(venueStr, {
-    x: VENUE_X,
-    y: VENUE_Y,
-    size: DEFAULT_LABEL_SIZE,
-    font: regularFont,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+  // --- VENUE - COMPLETELY REMOVED ---
 
   // --- Certificate ID (left‑aligned) ---
   page.drawText(`#${certId}`, {
