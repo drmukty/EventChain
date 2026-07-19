@@ -12,6 +12,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const userId = (session.user as any).id;
   const eventId = params.id;
   const body = await req.json().catch(() => ({}));
+  const reason = body.reason || null;
 
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -64,6 +65,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         data: {
           eventId,
           userId,
+          reason: reason,
           answers: body.answers ?? undefined,
           status: "WAITLISTED",
           waitlistPosition: waitlistCount + 1,
@@ -74,6 +76,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       data: {
         eventId,
         userId,
+        reason: reason,
         answers: body.answers ?? undefined,
         status: "PENDING",
       },
