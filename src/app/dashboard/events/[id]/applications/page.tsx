@@ -135,7 +135,7 @@ export default function EventApplicationsPage() {
               )}
             </div>
 
-            {/* Show the "Why attend?" reason */}
+            {/* Show the "Why attend?" reason if provided */}
             {app.reason && (
               <div className="mt-3 rounded-lg bg-white/5 p-3 border border-white/5">
                 <div className="flex items-center gap-2 text-xs text-fg-muted">
