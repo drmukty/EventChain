@@ -22,14 +22,12 @@ const NAME_X = 421;           // horizontal center of the name line
 const NAME_Y = 340;           // vertical position from bottom
 const NAME_MAX_WIDTH = 600;   // max width before shrinking
 
-// --- Event title (centered) ---
+// --- Event title (centered) - MOVED DOWN closer to the golden line ---
 const EVENT_X = 421;
-const EVENT_Y = 270;
+const EVENT_Y = 255;          // MOVED DOWN from 270 to 255 (closer to golden line)
 const EVENT_MAX_WIDTH = 600;
 
-// --- Date & Venue (left‑aligned) ---
-const DATE_X = 100;
-const DATE_Y = 200;
+// --- Venue (left‑aligned) ---
 const VENUE_X = 100;
 const VENUE_Y = 175;
 
@@ -39,10 +37,10 @@ const CERT_ID_Y = 80;
 const ISSUE_DATE_X = 100;
 const ISSUE_DATE_Y = 55;
 
-// --- QR code - MOVED DOWN near "VERIFY CERTIFICATE" text ---
-const QR_X = 680;             // top‑left X
-const QR_Y = 130;             // MOVED DOWN - now near the bottom of the certificate
-const QR_SIZE = 100;          // REDUCED SIZE
+// --- QR code ---
+const QR_X = 680;
+const QR_Y = 130;
+const QR_SIZE = 100;
 
 // --- Font sizes (auto‑resizing will reduce them if needed) ---
 const DEFAULT_NAME_SIZE = 28;
@@ -146,7 +144,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.1, 0.2, 0.5),
   });
 
-  // --- Event Title (bold, centered, auto‑resized) ---
+  // --- Event Title (bold, centered, auto‑resized) - MOVED DOWN ---
   const eventTitle = checkIn.event.title;
   const titleResult = fitTextToWidth(eventTitle, boldFont, EVENT_MAX_WIDTH, DEFAULT_TITLE_SIZE);
   const titleWidth = boldFont.widthOfTextAtSize(titleResult.text, titleResult.size);
@@ -158,19 +156,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.05, 0.1, 0.2),
   });
 
-  // --- Date (left‑aligned) ---
-  const dateStr = checkIn.event.startsAt.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  page.drawText(dateStr, {
-    x: DATE_X,
-    y: DATE_Y,
-    size: DEFAULT_LABEL_SIZE,
-    font: regularFont,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+  // --- DATE IN THE MIDDLE - COMPLETELY REMOVED ---
 
   // --- Venue (left‑aligned) ---
   const venueStr = checkIn.event.venue || "Online";
@@ -181,8 +167,6 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     font: regularFont,
     color: rgb(0.2, 0.2, 0.2),
   });
-
-  // --- CHECK-IN TIME REMOVED - no longer drawn ---
 
   // --- Certificate ID (left‑aligned) ---
   page.drawText(`#${certId}`, {
@@ -207,7 +191,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // --- QR Code - MOVED DOWN and REDUCED in size ---
+  // --- QR Code ---
   const qrBuffer = await QRCode.toBuffer(verifyUrl, {
     width: QR_SIZE,
     margin: 0,
