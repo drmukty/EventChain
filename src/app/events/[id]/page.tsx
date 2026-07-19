@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { MapPin, Calendar, Users, ShieldCheck, Share2, Check } from "lucide-react";
+import { MapPin, Calendar, Users, ShieldCheck, Share2, Check, X } from "lucide-react";
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +12,11 @@ export default function EventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Apply modal state
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetch(`/api/events/${id}`)
@@ -26,10 +31,18 @@ export default function EventDetailPage() {
       .catch(() => setError("Could not load this event"));
   }, [id]);
 
-  async function handleApply() {
-    setApplying(true);
+  async function handleApplySubmit() {
+    if (reason.trim().length < 10) {
+      toast.error("Please write at least 10 characters explaining why you want to attend.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const res = await fetch(`/api/events/${id}/apply`, { method: "POST", body: JSON.stringify({}) });
+      const res = await fetch(`/api/events/${id}/apply`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not apply");
       toast.success(
@@ -37,17 +50,18 @@ export default function EventDetailPage() {
           ? `You're #${data.application.waitlistPosition} on the waitlist`
           : "Application submitted!"
       );
+      setShowApplyModal(false);
+      setReason("");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
-      setApplying(false);
+      setSubmitting(false);
     }
   }
 
   async function handleShare() {
     const url = window.location.href;
 
-    // Use Web Share API (mobile)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -64,14 +78,12 @@ export default function EventDetailPage() {
       }
     }
 
-    // Fallback: Copy link to clipboard
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       toast.success("Link copied to clipboard! 📋");
       setTimeout(() => setCopied(false), 3000);
     } catch {
-      // Ultimate fallback
       try {
         const textArea = document.createElement("textarea");
         textArea.value = url;
@@ -141,10 +153,9 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* ✅ Buttons: Apply + Share side by side */}
         <div className="mt-10 flex flex-wrap gap-4">
           <button
-            onClick={handleApply}
+            onClick={() => setShowApplyModal(true)}
             disabled={applying}
             className="rounded-full bg-base-500 px-8 py-3 font-medium text-white shadow-glow transition-transform hover:scale-[1.02] disabled:opacity-60"
           >
@@ -160,6 +171,65 @@ export default function EventDetailPage() {
           </button>
         </div>
       </motion.div>
+
+      {/* Apply Modal */}
+      {showApplyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative w-full max-w-md rounded-2xl bg-white p-6 dark:bg-gray-900 shadow-2xl"
+          >
+            <button
+              onClick={() => setShowApplyModal(false)}
+              className="absolute right-4 top-4 rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <X size={20} className="text-gray-600 dark:text-gray-300" />
+            </button>
+
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Apply to attend</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              Tell the organizer why you want to attend this event.
+            </p>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Why do you want to attend? <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="I'm interested in this event because..."
+                rows={4}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+              />
+              <div className="mt-1 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>{reason.length}/500 characters</span>
+                <span className={reason.length >= 10 ? "text-green-400" : "text-amber-400"}>
+                  {reason.length === 0 ? "Minimum 10 characters" : reason.length < 10 ? `${10 - reason.length} more needed` : "✅ Good length"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowApplyModal(false)}
+                className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApplySubmit}
+                disabled={submitting}
+                className="flex-1 rounded-xl bg-base-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-base-600 disabled:opacity-60 transition-colors"
+              >
+                {submitting ? "Submitting..." : "Submit application"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
