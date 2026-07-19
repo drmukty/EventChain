@@ -33,15 +33,19 @@ export async function GET() {
           scannedById: true,
         },
       },
+      qrCode: {        // ✅ ADD THIS
+        select: {
+          id: true,
+          token: true,
+          dataUrl: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // Format the response with QR data URL if available
+  // Format the response
   const formatted = applications.map((app) => {
-    // @ts-ignore - qrCode might not be in the type but it exists
-    const qrCode = app.qrCode as { dataUrl?: string } | null;
-
     return {
       id: app.id,
       eventId: app.eventId,
@@ -50,7 +54,7 @@ export async function GET() {
       waitlistPosition: app.waitlistPosition,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
-      qrDataUrl: qrCode?.dataUrl || null,
+      qrDataUrl: app.qrCode?.dataUrl || null,   // ✅ Now this will work
       event: app.event,
       checkIn: app.checkIn || null,
     };
