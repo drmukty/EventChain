@@ -12,6 +12,8 @@ export default function EditEventPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     title: "",
@@ -48,6 +50,16 @@ export default function EditEventPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setError(null);
+    setFieldErrors({});
+
+    // ✅ Validate description length before submitting
+    if (formData.description.length < 10) {
+      setFieldErrors({ description: "Description must be at least 10 characters" });
+      toast.error("Description must be at least 10 characters");
+      setSaving(false);
+      return;
+    }
 
     try {
       const res = await fetch(`/api/events/${id}`, {
@@ -59,12 +71,39 @@ export default function EditEventPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update event");
+        let errorMessage = "Failed to update event";
+        
+        if (data.error) {
+          if (typeof data.error === "string") {
+            errorMessage = data.error;
+          } else if (data.error.message) {
+            errorMessage = data.error.message;
+          } else if (data.error.fieldErrors) {
+            const fieldErrors = Object.values(data.error.fieldErrors).flat();
+            errorMessage = fieldErrors.join(", ");
+          }
+        }
+        
+        // ✅ Handle specific error types
+        if (errorMessage.includes("datetime") || errorMessage.includes("date")) {
+          errorMessage = "Please check your date and time format. Make sure the dates are valid.";
+        }
+        if (errorMessage.includes("capacity")) {
+          errorMessage = "Capacity must be a positive number.";
+        }
+        if (errorMessage.includes("Description")) {
+          setFieldErrors({ description: errorMessage });
+        }
+        
+        setError(errorMessage);
+        toast.error(errorMessage);
+        return;
       }
 
       toast.success("Event updated successfully!");
       router.push(`/dashboard/events/${id}`);
     } catch (err: any) {
+      setError(err.message);
       toast.error(err.message);
     } finally {
       setSaving(false);
@@ -77,6 +116,11 @@ export default function EditEventPage() {
       ...prev,
       [name]: name === "capacity" ? parseInt(value) || 0 : value,
     }));
+    // Clear errors when user starts typing
+    if (error) setError(null);
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   }
 
   if (loading) {
@@ -104,6 +148,13 @@ export default function EditEventPage() {
         <h1 className="font-display text-3xl font-semibold text-gray-900 dark:text-white">Edit Event</h1>
         <p className="mt-2 text-fg-muted">Update your event details.</p>
 
+        {/* ✅ Show general error */}
+        {error && (
+          <div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-red-400 text-sm">
+            ❌ {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           {/* Title */}
           <div>
@@ -127,8 +178,28 @@ export default function EditEventPage() {
               onChange={handleChange}
               rows={4}
               required
-              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+              className={`mt-1 w-full rounded-xl border px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 dark:text-white dark:placeholder:text-gray-400 ${
+                fieldErrors.description || (formData.description.length > 0 && formData.description.length < 10)
+                  ? "border-red-500 focus:ring-red-500 dark:border-red-500"
+                  : "border-gray-300 dark:border-gray-600 dark:bg-gray-800 bg-white"
+              }`}
             />
+            <div className="mt-1 flex justify-between text-xs">
+              <span className="text-gray-500 dark:text-gray-400">
+                {formData.description.length}/500 characters
+              </span>
+              {formData.description.length > 0 && formData.description.length < 10 && (
+                <span className="text-red-400">
+                  Need {10 - formData.description.length} more characters
+                </span>
+              )}
+              {formData.description.length >= 10 && (
+                <span className="text-green-400">✅ Good length</span>
+              )}
+            </div>
+            {fieldErrors.description && (
+              <p className="mt-1 text-sm text-red-500">{fieldErrors.description}</p>
+            )}
           </div>
 
           {/* Venue */}
@@ -155,6 +226,7 @@ export default function EditEventPage() {
               required
               className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
+            <p className="mt-1 text-xs text-gray-400">Must be after the start date</p>
           </div>
 
           {/* Registration Deadline */}
