@@ -16,7 +16,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const userId = (session.user as any).id;
   const eventId = params.eventId;
 
-  // 1️⃣ Check if user has a valid check-in
+  // Check if user has a valid check-in
   const checkIn = await prisma.checkIn.findFirst({
     where: { eventId, userId },
     include: { event: true, user: true },
@@ -26,43 +26,29 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     return NextResponse.json({ error: "No verified attendance found for this event" }, { status: 404 });
   }
 
-  // 2️⃣ Delete OLD certificate from Supabase Storage (if exists)
+  // Delete old certificate from Supabase Storage (if exists)
   const existingCert = await prisma.certificate.findFirst({
     where: { eventId, userId },
   });
 
   if (existingCert && existingCert.pdfUrl) {
     try {
-      // Extract the file path from the URL
-      const urlParts = existingCert.pdfUrl.split("/");
-      const filePath = urlParts.slice(urlParts.indexOf("certificates")).join("/");
-      // Or use this alternative: extract path after /storage/v1/object/public/EventChain/
       const pathMatch = existingCert.pdfUrl.match(/\/EventChain\/(.+)$/);
       const pathToDelete = pathMatch ? pathMatch[1] : null;
-
       if (pathToDelete) {
-        const { error: deleteError } = await supabaseAdmin.storage
-          .from("EventChain")
-          .remove([pathToDelete]);
-        if (deleteError) {
-          console.warn("Failed to delete old certificate:", deleteError.message);
-          // Continue anyway – the new one will overwrite or we can still proceed
-        }
+        await supabaseAdmin.storage.from("EventChain").remove([pathToDelete]);
       }
     } catch (err) {
       console.warn("Error deleting old certificate:", err);
-      // Continue – we'll just overwrite or create a new one
     }
   }
 
-  // 3️⃣ Generate a unique certificate ID
+  // Generate unique certificate ID
   const certId = `EVT-${eventId.slice(0, 8).toUpperCase()}-${userId.slice(0, 6).toUpperCase()}`;
-
-  // 4️⃣ Build verification URL
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
   const verifyUrl = `${baseUrl}/verify/${certId}`;
 
-  // 5️⃣ Create PDF document
+  // Create PDF document
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([842, 595]);
   const { width, height } = page.getSize();
@@ -71,7 +57,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
 
-  // 6️⃣ Draw decorative borders
+  // Borders
   const margin = 40;
   page.drawRectangle({
     x: margin,
@@ -90,7 +76,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     borderWidth: 1,
   });
 
-  // 7️⃣ Header
+  // Title
   const title = "CERTIFICATE OF ATTENDANCE";
   const titleSize = 32;
   const titleWidth = boldFont.widthOfTextAtSize(title, titleSize);
@@ -102,7 +88,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.05, 0.15, 0.35),
   });
 
-  // 8️⃣ Subtitle
+  // Subtitle
   const subText = "This certifies that";
   const subSize = 16;
   const subWidth = regularFont.widthOfTextAtSize(subText, subSize);
@@ -114,7 +100,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // 9️⃣ Attendee name
+  // Attendee name
   const attendeeName = checkIn.user.name ?? checkIn.user.email;
   const nameSize = 32;
   const nameWidth = boldFont.widthOfTextAtSize(attendeeName, nameSize);
@@ -126,7 +112,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.1, 0.2, 0.5),
   });
 
-  // 🔟 Event details
+  // Event details
   const attendedText = "has successfully attended and participated in";
   const attendedSize = 14;
   const attendedWidth = regularFont.widthOfTextAtSize(attendedText, attendedSize);
@@ -149,7 +135,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.05, 0.1, 0.2),
   });
 
-  // 1️⃣1️⃣ Date and venue
+  // Date and venue
   const dateStr = checkIn.event.startsAt.toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -166,7 +152,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // 1️⃣2️⃣ Check-in time
+  // Check-in time
   const checkInTime = checkIn.checkedInAt.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -182,7 +168,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // 1️⃣3️⃣ "VERIFIED" badge
+  // Verified badge
   const badgeRadius = 30;
   const badgeX = width - 120;
   const badgeY = 120;
@@ -202,7 +188,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(1, 1, 1),
   });
 
-  // 1️⃣4️⃣ Certificate ID
+  // Certificate ID
   page.drawText(`Certificate ID: ${certId}`, {
     x: 80,
     y: 70,
@@ -211,7 +197,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // 1️⃣5️⃣ Issue date
+  // Issue date
   page.drawText(`Issued on: ${new Date().toLocaleDateString()}`, {
     x: 80,
     y: 50,
@@ -220,7 +206,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.3, 0.3, 0.3),
   });
 
-  // 1️⃣6️⃣ QR code
+  // QR Code
   const qrBuffer = await QRCode.toBuffer(verifyUrl, {
     width: 120,
     margin: 1,
@@ -235,7 +221,7 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     height: qrDims.height,
   });
 
-  // 1️⃣7️⃣ Signature (event name)
+  // Signature (event name)
   const signatureText = eventTitle;
   const sigSize = 18;
   const sigWidth = timesItalic.widthOfTextAtSize(signatureText, sigSize);
@@ -255,16 +241,16 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     color: rgb(0.2, 0.2, 0.4),
   });
 
-  // 1️⃣8️⃣ Save PDF
+  // Save PDF
   const pdfBytes = await pdfDoc.save();
 
-  // 1️⃣9️⃣ Upload to Supabase
+  // Upload to Supabase
   const path = `certificates/${eventId}/${userId}.pdf`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from("EventChain")
     .upload(path, Buffer.from(pdfBytes), {
       contentType: "application/pdf",
-      upsert: true, // ✅ This overwrites the old file if it exists
+      upsert: true,
     });
 
   if (uploadError) {
@@ -279,29 +265,25 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
     .from("EventChain")
     .getPublicUrl(path);
 
-  // 2️⃣0️⃣ Create or update certificate record in DB
-  const certificate = await prisma.certificate.upsert({
+  // ✅ Delete old certificate from database (if exists)
+  await prisma.certificate.deleteMany({
     where: {
-      eventId_userId: {
-        eventId,
-        userId,
-      },
+      eventId: eventId,
+      userId: userId,
     },
-    update: {
+  });
+
+  // ✅ Create new certificate
+  const certificate = await prisma.certificate.create({
+    data: {
       certificateId: certId,
-      pdfUrl: publicUrlData.publicUrl,
-      issuedAt: new Date(),
-    },
-    create: {
-      certificateId: certId,
-      eventId,
-      userId,
+      eventId: eventId,
+      userId: userId,
       checkInId: checkIn.id,
       pdfUrl: publicUrlData.publicUrl,
     },
   });
 
-  // 2️⃣1️⃣ Notify user
   await notify(userId, {
     type: "CERTIFICATE_READY",
     title: "Certificate ready",
