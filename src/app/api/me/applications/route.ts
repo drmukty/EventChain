@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import QRCode from "qrcode";  // ✅ Add this import
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -37,30 +38,46 @@ export async function GET() {
         select: {
           id: true,
           token: true,
-          // ✅ Remove dataUrl if it doesn't exist
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // Format the response
-  const formatted = applications.map((app) => {
-    return {
-      id: app.id,
-      eventId: app.eventId,
-      userId: app.userId,
-      status: app.status,
-      waitlistPosition: app.waitlistPosition,
-      createdAt: app.createdAt,
-      updatedAt: app.updatedAt,
-      // If dataUrl doesn't exist, qrDataUrl will be null
-      // The frontend will handle this
-      qrDataUrl: null,
-      event: app.event,
-      checkIn: app.checkIn || null,
-    };
-  });
+  // Format the response and generate QR codes
+  const formatted = await Promise.all(
+    applications.map(async (app) => {
+      let qrDataUrl = null;
+
+      // If there's a QR code token, generate the QR image
+      if (app.qrCode?.token) {
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
+          const qrPayload = `${baseUrl}/scan?token=${app.qrCode.token}`;
+          qrDataUrl = await QRCode.toDataURL(qrPayload, {
+            errorCorrectionLevel: "H",
+            margin: 1,
+            width: 300,
+          });
+        } catch (err) {
+          console.error("QR generation failed:", err);
+        }
+      }
+
+      return {
+        id: app.id,
+        eventId: app.eventId,
+        userId: app.userId,
+        status: app.status,
+        waitlistPosition: app.waitlistPosition,
+        createdAt: app.createdAt,
+        updatedAt: app.updatedAt,
+        qrDataUrl: qrDataUrl,
+        event: app.event,
+        checkIn: app.checkIn || null,
+      };
+    })
+  );
 
   return NextResponse.json({ applications: formatted });
 }
