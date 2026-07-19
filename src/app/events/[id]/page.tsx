@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { MapPin, Calendar, Users, ShieldCheck } from "lucide-react";
+import { MapPin, Calendar, Users, ShieldCheck, Share2, Check } from "lucide-react";
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [event, setEvent] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch(`/api/events/${id}`)
@@ -43,6 +44,51 @@ export default function EventDetailPage() {
     }
   }
 
+  async function handleShare() {
+    const url = window.location.href;
+
+    // Use Web Share API (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: event?.title || "Event",
+          text: `Check out "${event?.title}" on EventChain! 🎉`,
+          url: url,
+        });
+        return;
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          console.error("Share error:", e);
+        }
+        return;
+      }
+    }
+
+    // Fallback: Copy link to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Link copied to clipboard! 📋");
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      // Ultimate fallback
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        setCopied(true);
+        toast.success("Link copied! 📋");
+        setTimeout(() => setCopied(false), 3000);
+      } catch {
+        toast.error("Could not copy link. Please copy it manually.");
+        prompt("Copy this link:", url);
+      }
+    }
+  }
+
   if (error) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-24 text-center">
@@ -58,14 +104,14 @@ export default function EventDetailPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
       {event.bannerUrl ? (
-  <img
-    src={event.bannerUrl}
-    alt={event.title}
-    className="h-56 w-full rounded-3xl object-cover"
-  />
-) : (
-  <div className="h-56 w-full rounded-3xl bg-gradient-to-br from-base-500/30 to-violet-500/20" />
-)}
+        <img
+          src={event.bannerUrl}
+          alt={event.title}
+          className="h-56 w-full rounded-3xl object-cover"
+        />
+      ) : (
+        <div className="h-56 w-full rounded-3xl bg-gradient-to-br from-base-500/30 to-violet-500/20" />
+      )}
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
         <span className="text-xs font-medium uppercase tracking-wide text-base-400">{event.category}</span>
@@ -95,13 +141,24 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        <button
-          onClick={handleApply}
-          disabled={applying}
-          className="mt-10 rounded-full bg-base-500 px-8 py-3 font-medium text-white shadow-glow transition-transform hover:scale-[1.02] disabled:opacity-60"
-        >
-          {applying ? "Applying…" : seatsLeft > 0 ? "Apply to attend" : "Join waitlist"}
-        </button>
+        {/* ✅ Buttons: Apply + Share side by side */}
+        <div className="mt-10 flex flex-wrap gap-4">
+          <button
+            onClick={handleApply}
+            disabled={applying}
+            className="rounded-full bg-base-500 px-8 py-3 font-medium text-white shadow-glow transition-transform hover:scale-[1.02] disabled:opacity-60"
+          >
+            {applying ? "Applying…" : seatsLeft > 0 ? "Apply to attend" : "Join waitlist"}
+          </button>
+
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 rounded-full border border-white/20 px-6 py-3 font-medium text-fg-muted hover:bg-white/5 transition-colors"
+          >
+            {copied ? <Check size={18} className="text-green-400" /> : <Share2 size={18} />}
+            {copied ? "Copied!" : "Share"}
+          </button>
+        </div>
       </motion.div>
     </div>
   );
