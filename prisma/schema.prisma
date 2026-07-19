@@ -240,6 +240,8 @@ model Application {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  reason          String?           // ✅ NEW: Why do they want to attend?
+
   qrCode   QRCode?
   checkIn  CheckIn?
 
@@ -349,7 +351,7 @@ model Notification {
 }
 
 // ────────────────────────────────
-// PASSWORD RESET TOKENS  ✅ ADDED
+// PASSWORD RESET TOKENS
 // ────────────────────────────────
 
 model PasswordResetToken {
