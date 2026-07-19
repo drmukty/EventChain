@@ -8,7 +8,7 @@ import { useSession, signOut } from "next-auth/react";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function Navbar() {
-  const [isDark, setIsDark] = useState(false); // ✅ changed from true to false (light mode by default)
+  const [isDark, setIsDark] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session } = useSession();
   const [isStaffAnywhere, setIsStaffAnywhere] = useState(false);
@@ -42,6 +42,9 @@ export function Navbar() {
             <Link href="/my-events" className="text-gray-700 dark:text-fg-muted hover:text-black dark:hover:text-white transition-colors">Joined Events</Link>
           )}
           {session && (
+            <Link href="/dashboard/events" className="text-gray-700 dark:text-fg-muted hover:text-black dark:hover:text-white transition-colors">My Events</Link>
+          )}
+          {session && (
             <Link href="/nft-gallery" className="text-gray-700 dark:text-fg-muted hover:text-black dark:hover:text-white transition-colors">NFT Gallery</Link>
           )}
           {session && (
@@ -54,7 +57,6 @@ export function Navbar() {
           <Link href="/contact" className="text-gray-700 dark:text-fg-muted hover:text-black dark:hover:text-white transition-colors">Contact</Link>
         </nav>
 
-        {/* Mobile Menu Button */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="rounded-full p-2 text-fg-muted hover:bg-gray-100 dark:hover:bg-white/5 md:hidden"
@@ -74,122 +76,30 @@ export function Navbar() {
 
           <NotificationBell />
 
-          {/* Mobile Menu */}
           {mobileMenuOpen && (
             <div className="absolute right-6 top-20 z-50 w-64 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-ink-950/95 p-4 shadow-2xl backdrop-blur-xl md:hidden">
               <div className="flex flex-col gap-2 text-gray-900 dark:text-white">
-
-                <Link
-                  href="/events"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                >
-                  Browse Events
-                </Link>
-
-                {session && (
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    Dashboard
-                  </Link>
-                )}
-
-                {session && (
-                  <Link
-                    href="/my-events"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    Joined Events
-                  </Link>
-                )}
-
-                {session && (
-                  <Link
-                    href="/dashboard/events"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    My Events
-                  </Link>
-                )}
-
-                {session && (
-                  <Link
-                    href="/nft-gallery"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    NFT Gallery
-                  </Link>
-                )}
-
-                {isStaffAnywhere && (
-                  <Link
-                    href="/scan"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    Scan
-                  </Link>
-                )}
-
-                <Link
-                  href="/guide"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                >
-                  User Guide
-                </Link>
-
-                <Link
-                  href="/contact"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                >
-                  Contact Us
-                </Link>
-
+                <Link href="/events" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">Browse Events</Link>
+                {session && <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">Dashboard</Link>}
+                {session && <Link href="/my-events" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">Joined Events</Link>}
+                {session && <Link href="/dashboard/events" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">My Events</Link>}
+                {session && <Link href="/nft-gallery" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">NFT Gallery</Link>}
+                {isStaffAnywhere && <Link href="/scan" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">Scan</Link>}
+                <Link href="/guide" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">User Guide</Link>
+                <Link href="/contact" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">Contact Us</Link>
                 {session ? (
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      signOut();
-                    }}
-                    className="rounded-lg px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    Sign Out
-                  </button>
+                  <button onClick={() => { setMobileMenuOpen(false); signOut(); }} className="rounded-lg px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-white/5">Sign Out</button>
                 ) : (
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5"
-                  >
-                    Sign In
-                  </Link>
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5">Sign In</Link>
                 )}
               </div>
             </div>
           )}
 
           {session ? (
-            <button
-              onClick={() => signOut()}
-              className="hidden md:block rounded-full bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10"
-            >
-              Sign out
-            </button>
+            <button onClick={() => signOut()} className="hidden md:block rounded-full bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10">Sign out</button>
           ) : (
-            <Link
-              href="/login"
-              className="hidden md:block rounded-full bg-base-500 px-4 py-2 text-sm font-medium text-white shadow-glow hover:bg-base-600 transition-colors"
-            >
-              Sign in
-            </Link>
+            <Link href="/login" className="hidden md:block rounded-full bg-base-500 px-4 py-2 text-sm font-medium text-white shadow-glow hover:bg-base-600 transition-colors">Sign in</Link>
           )}
         </div>
       </div>
