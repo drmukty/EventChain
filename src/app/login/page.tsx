@@ -19,9 +19,6 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
-  // When middleware redirects an unauthenticated visitor to /login, it
-  // appends ?callbackUrl=/original/path so they land back where they were
-  // headed after signing in, instead of always being sent to /dashboard.
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   async function handleCredentialsLogin(e: React.FormEvent) {
@@ -71,7 +68,7 @@ function LoginForm() {
 
         <div className="mt-3 text-right">
           <a
-            href="/forgot-password"
+            href="/auth/forgot-password"   // ✅ changed from /forgot-password
             className="text-sm font-medium text-base-500 hover:underline"
           >
             Forgot Password?
