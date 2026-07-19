@@ -27,7 +27,18 @@ export async function POST(_req: Request, { params }: { params: { eventId: strin
   const existing = await prisma.certificate.findFirst({
     where: { eventId, userId },
   });
-  if (existing) return NextResponse.json({ certificate: existing });
+
+  if (existing) {
+    await prisma.certificate.delete({
+      where: {
+        id: existing.id,
+      },
+    });
+
+    await supabaseAdmin.storage
+      .from("EventChain")
+      .remove([`certificates/${eventId}/${userId}.pdf`]);
+  }
 
   const certId = `EVT-${eventId.slice(0, 8).toUpperCase()}-${userId.slice(0, 6).toUpperCase()}`;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
