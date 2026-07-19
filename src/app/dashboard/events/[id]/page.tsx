@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { ArrowLeft, Calendar, MapPin, Users, Edit, Trash2, QrCode, UserPlus } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Users, Trash2, QrCode, UserPlus } from "lucide-react";
 
 export default function ManageEventPage() {
   const { id } = useParams<{ id: string }>();
@@ -100,12 +100,7 @@ export default function ManageEventPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Link
-            href={`/dashboard/events/${id}/edit`}
-            className="flex items-center gap-1.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium hover:bg-white/5 transition-colors"
-          >
-            <Edit size={16} /> Edit
-          </Link>
+          {/* ✅ Edit button REMOVED - only Delete remains */}
           <button
             onClick={deleteEvent}
             className="flex items-center gap-1.5 rounded-full border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors"
