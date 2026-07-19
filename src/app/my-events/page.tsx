@@ -59,6 +59,10 @@ export default function MyEventsPage() {
     }
   }
 
+  const isCheckedIn = (app: any) => {
+    return app.checkIn && app.checkIn.checkedInAt !== null;
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -76,51 +80,60 @@ export default function MyEventsPage() {
       )}
 
       <div className="mt-10 space-y-4">
-        {applications.map((app, i) => (
-          <motion.div
-            key={app.id}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className="glass-panel w-full flex flex-col gap-4 rounded-2xl p-6 shadow-glass sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0">
-              <p className="font-display font-semibold whitespace-normal break-words">{app.event.title}</p>
-              <p className="text-xs text-fg-muted">{app.event.venue} · {new Date(app.event.startsAt).toLocaleDateString()}</p>
-              <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[app.status]}`}>
-                {app.status}{app.waitlistPosition ? ` · #${app.waitlistPosition}` : ""}
-              </span>
-            </div>
+        {applications.map((app, i) => {
+          const checkedIn = isCheckedIn(app);
+          const canDownloadCertificate = checkedIn;
 
-            <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-              {app.qrDataUrl && (
-                <a
-                  href={app.qrDataUrl}
-                  download={`eventchain-qr-${app.event.slug}.png`}
-                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
-                >
-                  <QrCode size={14} /> Download QR
-                </a>
-              )}
-              {new Date() > new Date(app.event.endsAt) && app.status === "APPROVED" && (
-                <button
-                  onClick={() => downloadCertificate(app.eventId)}
-                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
-                >
-                  <FileDown size={14} /> Certificate
-                </button>
-              )}
-              {["PENDING", "APPROVED", "WAITLISTED"].includes(app.status) && (
-                <button
-                  onClick={() => cancel(app.id)}
-                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-red-500/20 px-4 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10"
-                >
-                  <X size={14} /> Cancel
-                </button>
-              )}
-            </div>
-          </motion.div>
-        ))}
+          return (
+            <motion.div
+              key={app.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="glass-panel w-full flex flex-col gap-4 rounded-2xl p-6 shadow-glass sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="font-display font-semibold whitespace-normal break-words">{app.event.title}</p>
+                <p className="text-xs text-fg-muted">{app.event.venue} · {new Date(app.event.startsAt).toLocaleDateString()}</p>
+                <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[app.status]}`}>
+                  {app.status}{app.waitlistPosition ? ` · #${app.waitlistPosition}` : ""}
+                </span>
+              </div>
+
+              <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                {app.qrDataUrl && (
+                  <a
+                    href={app.qrDataUrl}
+                    download={`eventchain-qr-${app.event.slug}.png`}
+                    className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5"
+                  >
+                    <QrCode size={14} /> Download QR
+                  </a>
+                )}
+
+                {/* ✅ Certificate button - shows after check-in, not after event ends */}
+                {canDownloadCertificate && (
+                  <button
+                    onClick={() => downloadCertificate(app.eventId)}
+                    className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-base-500/30 px-4 py-2 text-xs font-medium text-base-400 hover:bg-base-500/10"
+                  >
+                    <FileDown size={14} /> Certificate
+                  </button>
+                )}
+
+                {/* ✅ Cancel button - hidden after check-in */}
+                {["PENDING", "APPROVED", "WAITLISTED"].includes(app.status) && !checkedIn && (
+                  <button
+                    onClick={() => cancel(app.id)}
+                    className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-red-500/20 px-4 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10"
+                  >
+                    <X size={14} /> Cancel
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
