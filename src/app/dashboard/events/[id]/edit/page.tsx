@@ -53,28 +53,27 @@ export default function EditEventPage() {
     setError(null);
     setFieldErrors({});
 
-    // ✅ Description is now optional - remove validation
-    // if (formData.description.length < 10) { ... }
-
     try {
+      // ✅ Convert dates to ISO strings
+      const payload = {
+        title: formData.title,
+        description: formData.description || "",
+        venue: formData.venue,
+        endsAt: new Date(formData.endsAt).toISOString(),
+        registrationDeadline: new Date(formData.registrationDeadline).toISOString(),
+        capacity: formData.capacity,
+      };
+
       const res = await fetch(`/api/events/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description || "", // send empty string if blank
-          venue: formData.venue,
-          endsAt: formData.endsAt,
-          registrationDeadline: formData.registrationDeadline,
-          capacity: formData.capacity,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         let errorMessage = "Failed to update event";
-        
         if (data.error) {
           if (typeof data.error === "string") {
             errorMessage = data.error;
@@ -82,7 +81,6 @@ export default function EditEventPage() {
             errorMessage = data.error.message;
           }
         }
-        
         setError(errorMessage);
         toast.error(errorMessage);
         return;
@@ -155,7 +153,7 @@ export default function EditEventPage() {
             />
           </div>
 
-          {/* Description - NOW OPTIONAL */}
+          {/* Description - OPTIONAL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Description <span className="text-gray-400">(optional)</span>
