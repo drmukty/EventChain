@@ -53,7 +53,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // ✅ Only validate fields that are actually sent
   const updateSchema = z.object({
     title: z.string().min(3).max(120).optional(),
-    description: z.string().min(10).optional(),
+    description: z.string().optional(), // ✅ No minimum length – truly optional
     category: z.string().min(2).optional(),
     venue: z.string().min(2).optional(),
     address: z.string().optional().nullable(),
