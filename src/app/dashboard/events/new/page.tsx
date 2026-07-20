@@ -6,6 +6,9 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { UploadCloud } from "lucide-react";
 
+// ✅ Set max file size to 150KB
+const MAX_FILE_SIZE = 150000; // 150KB
+
 async function uploadFile(file: File, folder: string) {
   const formData = new FormData();
   formData.append("file", file);
@@ -38,6 +41,13 @@ export default function NewEventPage() {
   async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // ✅ Check file size before uploading
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`Image too large. Max ${MAX_FILE_SIZE / 1000}KB`);
+      return;
+    }
+
     try {
       const url = await uploadFile(file, "banners");
       setBannerUrl(url);
@@ -90,7 +100,7 @@ export default function NewEventPage() {
           ) : (
             <div className="flex flex-col items-center gap-2 text-fg-muted">
               <UploadCloud size={22} />
-              <span className="text-sm">Upload a banner image</span>
+              <span className="text-sm">Upload a banner image (Max 150KB)</span>
             </div>
           )}
         </label>
