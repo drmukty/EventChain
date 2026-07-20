@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 
-const MAX_BYTES = 75000; // ✅ 75KB
+const MAX_BYTES = 150000; // ✅ 150KB (changed from 75KB)
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 // POST /api/upload
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { error: `Image too large. Max ${MAX_BYTES / 1000}KB` }, // shows "Max 75KB"
+      { error: `Image too large. Max ${MAX_BYTES / 1000}KB` }, // shows "Max 150KB"
       { status: 400 }
     );
   }
