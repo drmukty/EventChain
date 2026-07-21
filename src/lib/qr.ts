@@ -12,7 +12,6 @@ function sign(payload: string) {
   return crypto.createHmac("sha256", getSigningSecret()).update(payload).digest("hex");
 }
 
-// The `_expiresAt` parameter is kept for backward compatibility but ignored
 export async function issueQRCodeForApplication(applicationId: string, _expiresAt?: Date) {
   const token = crypto.randomBytes(32).toString("hex");
 
@@ -27,7 +26,7 @@ export async function issueQRCodeForApplication(applicationId: string, _expiresA
       applicationId,
       token,
       payloadHash,
-      expiresAt, // stored but never checked
+      expiresAt,
     },
   });
 
@@ -48,11 +47,11 @@ export async function issueQRCodeForApplication(applicationId: string, _expiresA
     sig: payloadHash,
   });
 
-  // ✅ Increased QR size for better scanning reliability
+  // ✅ Even larger QR for reliable scanning
   const dataUrl = await QRCode.toDataURL(payload, {
     errorCorrectionLevel: "H",   // Highest error correction
-    margin: 4,                   // More white space around the QR (was 2)
-    width: 800,                  // Higher resolution (was 512)
+    margin: 8,                   // More white space (was 4)
+    width: 1200,                 // Even higher resolution (was 800)
   });
 
   return { qr, dataUrl, payload };
@@ -65,8 +64,8 @@ type ScanResult =
       reason:
         | "MALFORMED"
         | "TAMPERED"
-        | "EXPIRED"        // kept for compatibility, never returned
-        | "ALREADY_USED"   // kept for compatibility, never returned
+        | "EXPIRED"
+        | "ALREADY_USED"
         | "NOT_FOUND";
     };
 
@@ -87,16 +86,12 @@ export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
     return { ok: false, reason: "MALFORMED" };
   }
 
-  // Verify signature (tamper‑proof)
   const expected = sign(`${parsed.applicationId}:${parsed.token}:${parsed.exp}`);
   const expectedBuf = Buffer.from(expected, "hex");
   const gotBuf = Buffer.from(parsed.sig, "hex");
   if (expectedBuf.length !== gotBuf.length || !crypto.timingSafeEqual(expectedBuf, gotBuf)) {
     return { ok: false, reason: "TAMPERED" };
   }
-
-  // ❌ Expiry check removed – QR never expires
-  // if (Date.now() > parsed.exp) { return { ok: false, reason: "EXPIRED" }; }
 
   const qr = await prisma.qRCode.findUnique({
     where: { token: parsed.token },
@@ -106,9 +101,6 @@ export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
     return { ok: false, reason: "NOT_FOUND" };
   }
 
-  // ❌ isUsed check removed – QR can be scanned indefinitely
-  // if (qr.isUsed) { return { ok: false, reason: "ALREADY_USED" }; }
-
   return {
     ok: true,
     applicationId: qr.applicationId,
@@ -117,7 +109,6 @@ export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
   };
 }
 
-// consumeQRCode is no longer used – leave as no‑op to avoid breaking imports
 export async function consumeQRCode(_token: string) {
   return { ok: true };
 }
