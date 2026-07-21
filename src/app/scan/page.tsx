@@ -40,7 +40,6 @@ export default function ScanPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  // Check camera permission status
   const checkPermission = async () => {
     if (!navigator.permissions || !navigator.permissions.query) {
       setCameraPermission("unsupported");
@@ -60,7 +59,6 @@ export default function ScanPage() {
     }
   };
 
-  // Start camera
   const startCamera = async () => {
     setCameraError(null);
     try {
@@ -90,7 +88,6 @@ export default function ScanPage() {
     }
   };
 
-  // Scan loop
   const scanLoop = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -112,7 +109,6 @@ export default function ScanPage() {
     animationRef.current = requestAnimationFrame(scanLoop);
   };
 
-  // Stop camera
   const stopCamera = () => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -127,7 +123,6 @@ export default function ScanPage() {
     }
   };
 
-  // Handle scan
   const handleScan = async (payload: string) => {
     setBusy(true);
     try {
@@ -289,9 +284,8 @@ export default function ScanPage() {
               </p>
               <button
                 onClick={async () => {
-                  await checkPermission();
-                  if (cameraPermission === "granted") startCamera();
-                  else if (cameraPermission === "prompt") startCamera(); // will trigger prompt
+                  // Simply call startCamera – it will handle the prompt if permission changes
+                  await startCamera();
                 }}
                 className="mt-4 flex items-center gap-2 rounded-full bg-base-500 px-4 py-2 text-white"
               >
