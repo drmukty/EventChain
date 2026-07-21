@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import QRCode from "qrcode";  // ✅ Add this import
+import QRCode from "qrcode";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -38,26 +38,39 @@ export async function GET() {
         select: {
           id: true,
           token: true,
+          payloadHash: true,
+          expiresAt: true,
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // Format the response and generate QR codes
+  // Format the response and generate QR codes on the fly
   const formatted = await Promise.all(
     applications.map(async (app) => {
       let qrDataUrl = null;
 
-      // If there's a QR code token, generate the QR image
+      // If there's a QR code token, generate the QR image with the correct payload
       if (app.qrCode?.token) {
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://eventschain.vercel.app";
-          const qrPayload = `${baseUrl}/scan?token=${app.qrCode.token}`;
-          qrDataUrl = await QRCode.toDataURL(qrPayload, {
+          const qr = app.qrCode;
+          const expTimestamp = qr.expiresAt.getTime();
+
+          // ✅ Reconstruct the exact payload used when the QR was issued
+          const payload = JSON.stringify({
+            applicationId: app.id,
+            eventId: app.eventId,
+            token: qr.token,
+            exp: expTimestamp,
+            sig: qr.payloadHash,
+          });
+
+          // ✅ Generate QR with large settings for reliable scanning
+          qrDataUrl = await QRCode.toDataURL(payload, {
             errorCorrectionLevel: "H",
-            margin: 1,
-            width: 300,
+            margin: 12,
+            width: 1500,
           });
         } catch (err) {
           console.error("QR generation failed:", err);
@@ -72,7 +85,7 @@ export async function GET() {
         waitlistPosition: app.waitlistPosition,
         createdAt: app.createdAt,
         updatedAt: app.updatedAt,
-        qrDataUrl: qrDataUrl,
+        qrDataUrl,
         event: app.event,
         checkIn: app.checkIn || null,
       };
