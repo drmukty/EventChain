@@ -14,31 +14,21 @@ function sign(payload: string) {
 
 export async function issueQRCodeForApplication(applicationId: string, _expiresAt?: Date) {
   const token = crypto.randomBytes(32).toString("hex");
-
-  // No real expiration – set to year 3000
   const expiresAt = new Date(3000, 0, 1);
   const expTimestamp = expiresAt.getTime();
-
   const payloadHash = sign(`${applicationId}:${token}:${expTimestamp}`);
 
   const qr = await prisma.qRCode.create({
-    data: {
-      applicationId,
-      token,
-      payloadHash,
-      expiresAt,
-    },
+    data: { applicationId, token, payloadHash, expiresAt },
   });
 
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     select: { eventId: true },
   });
+  if (!application) throw new Error("Application not found");
 
-  if (!application) {
-    throw new Error("Application not found");
-  }
-
+  // ✅ Compact JSON (no extra spaces)
   const payload = JSON.stringify({
     applicationId,
     eventId: application.eventId,
@@ -47,36 +37,18 @@ export async function issueQRCodeForApplication(applicationId: string, _expiresA
     sig: payloadHash,
   });
 
-  // ✅ Even larger QR for reliable scanning
+  // ✅ Very large QR for perfect scanning
   const dataUrl = await QRCode.toDataURL(payload, {
-    errorCorrectionLevel: "H",   // Highest error correction
-    margin: 8,                   // More white space (was 4)
-    width: 1200,                 // Even higher resolution (was 800)
+    errorCorrectionLevel: "H",
+    margin: 12,
+    width: 1500,
   });
 
   return { qr, dataUrl, payload };
 }
 
-type ScanResult =
-  | { ok: true; applicationId: string; eventId: string; token: string }
-  | {
-      ok: false;
-      reason:
-        | "MALFORMED"
-        | "TAMPERED"
-        | "EXPIRED"
-        | "ALREADY_USED"
-        | "NOT_FOUND";
-    };
-
 export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
-  let parsed: {
-    applicationId: string;
-    eventId: string;
-    token: string;
-    exp: number;
-    sig: string;
-  };
+  let parsed;
   try {
     parsed = JSON.parse(rawPayload);
     if (!parsed.applicationId || !parsed.token || !parsed.exp || !parsed.sig) {
@@ -87,16 +59,11 @@ export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
   }
 
   const expected = sign(`${parsed.applicationId}:${parsed.token}:${parsed.exp}`);
-  const expectedBuf = Buffer.from(expected, "hex");
-  const gotBuf = Buffer.from(parsed.sig, "hex");
-  if (expectedBuf.length !== gotBuf.length || !crypto.timingSafeEqual(expectedBuf, gotBuf)) {
+  if (!crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(parsed.sig, "hex"))) {
     return { ok: false, reason: "TAMPERED" };
   }
 
-  const qr = await prisma.qRCode.findUnique({
-    where: { token: parsed.token },
-  });
-
+  const qr = await prisma.qRCode.findUnique({ where: { token: parsed.token } });
   if (!qr || qr.applicationId !== parsed.applicationId) {
     return { ok: false, reason: "NOT_FOUND" };
   }
@@ -108,6 +75,10 @@ export async function verifyQRCode(rawPayload: string): Promise<ScanResult> {
     token: qr.token,
   };
 }
+
+type ScanResult =
+  | { ok: true; applicationId: string; eventId: string; token: string }
+  | { ok: false; reason: "MALFORMED" | "TAMPERED" | "NOT_FOUND" | "EXPIRED" | "ALREADY_USED" };
 
 export async function consumeQRCode(_token: string) {
   return { ok: true };
