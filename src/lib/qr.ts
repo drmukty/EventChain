@@ -48,10 +48,11 @@ export async function issueQRCodeForApplication(applicationId: string, _expiresA
     sig: payloadHash,
   });
 
+  // ✅ Increased QR size for better scanning reliability
   const dataUrl = await QRCode.toDataURL(payload, {
-    errorCorrectionLevel: "H",
-    margin: 2,
-    width: 512,
+    errorCorrectionLevel: "H",   // Highest error correction
+    margin: 4,                   // More white space around the QR (was 2)
+    width: 800,                  // Higher resolution (was 512)
   });
 
   return { qr, dataUrl, payload };
