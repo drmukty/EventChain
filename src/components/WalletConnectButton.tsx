@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { Wallet, Check, LogOut } from "lucide-react";
+import { Wallet, Check, LogOut, Copy } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
 declare global {
@@ -29,7 +29,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
     setConnecting(true);
     try {
-      // ✅ ALWAYS request accounts – opens the wallet connection prompt
       const accounts: string[] = await window.ethereum.request({
         method: "eth_requestAccounts",
       });
@@ -42,7 +41,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       const address = accounts[0];
 
-      // ✅ Check if wallet is already linked to another account
       const checkRes = await fetch(`/api/user/by-wallet?address=${address}`);
       const checkData = await checkRes.json();
 
@@ -52,7 +50,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         return;
       }
 
-      // ✅ Link wallet to user account
       const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -80,9 +77,9 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     }
   }
 
+  // ✅ Disconnect instantly – NO browser confirmation popup
   async function disconnect() {
     if (!wallet) return;
-    if (!confirm("Remove wallet from your account and sign out?")) return;
 
     try {
       const res = await fetch("/api/user/wallet", { method: "DELETE" });
@@ -97,6 +94,17 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Disconnect failed");
+    }
+  }
+
+  // ✅ Copy wallet address to clipboard
+  async function copyAddress() {
+    if (!wallet) return;
+    try {
+      await navigator.clipboard.writeText(wallet);
+      toast.success("Address copied to clipboard! 📋");
+    } catch {
+      toast.error("Failed to copy address");
     }
   }
 
@@ -117,9 +125,15 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
   if (wallet) {
     return (
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-400">
-          <Check size={14} /> {wallet.slice(0, 6)}…{wallet.slice(-4)}
-        </div>
+        <button
+          onClick={copyAddress}
+          className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+          aria-label="Copy wallet address"
+        >
+          <Check size={14} />
+          <span>{wallet.slice(0, 6)}…{wallet.slice(-4)}</span>
+          <Copy size={12} className="opacity-50" />
+        </button>
         <button
           onClick={disconnect}
           className="rounded-full p-2 text-red-400 hover:bg-red-500/10 transition-colors"
