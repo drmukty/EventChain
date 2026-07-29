@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check, LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { ethers } from "ethers";
 
 declare global {
   interface Window {
@@ -12,9 +13,11 @@ declare global {
   }
 }
 
-const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14a34"; // 84532
+const BASE_SEPOLIA_CHAIN_ID = 84532;
+const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14a34";
 
 export function WalletConnectButton({ currentWallet }: { currentWallet?: string | null }) {
+  const { data: session } = useSession();
   const [connecting, setConnecting] = useState(false);
   const [wallet, setWallet] = useState(currentWallet ?? null);
 
@@ -27,12 +30,16 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       toast.error("MetaMask not found — install it from metamask.io");
       return;
     }
+
     setConnecting(true);
     try {
-      const accounts: string[] = await window.ethereum.request({ method: "eth_requestAccounts" });
+      // 1️⃣ Request account access (opens MetaMask)
+      const accounts: string[] = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
       const address = accounts[0];
 
-      // Switch to Base Sepolia
+      // 2️⃣ Switch to Base Sepolia (or add if missing)
       try {
         await window.ethereum.request({
           method: "wallet_switchEthereumChain",
@@ -40,6 +47,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         });
       } catch (switchError: any) {
         if (switchError.code === 4902) {
+          // Network not added → add it with user permission
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [
@@ -57,39 +65,47 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         }
       }
 
-      // ✅ Link wallet to user account
-      const res = await fetch("/api/user/wallet", {
+      // 3️⃣ Request signature (verify wallet ownership)
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const message = `Sign this message to verify ownership of wallet ${address} for Block Pass.`;
+      const signature = await signer.signMessage(message);
+
+      // 4️⃣ Verify signature with backend
+      const verifyRes = await fetch("/api/user/verify-wallet", {
+        method: "POST",
+        body: JSON.stringify({ walletAddress: address, signature, message }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        throw new Error(verifyData.error || "Signature verification failed");
+      }
+
+      // 5️⃣ Link wallet to user account
+      const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data.error?.includes("already linked") || data.error?.includes("already in use")) {
-          const userInfo = await fetch(`/api/user/by-wallet?address=${address}`)
-            .then((r) => r.json())
-            .catch(() => null);
-          if (userInfo?.user?.name) {
-            toast.error(`This wallet is already connected to "${userInfo.user.name}". Please use a different account in MetaMask.`);
-          } else {
-            toast.error("This wallet is already connected to another account. Please choose a different account in MetaMask.");
-          }
+      const linkData = await linkRes.json();
+      if (!linkRes.ok) {
+        if (linkData.error?.includes("already linked")) {
+          toast.error(`This wallet is already connected to another account.`);
         } else {
-          toast.error(data.error || "Could not link wallet");
+          toast.error(linkData.error || "Could not link wallet");
         }
         setConnecting(false);
         return;
       }
 
       setWallet(address);
-      toast.success("Wallet connected!");
-      // ✅ Reload to refresh session with wallet address
+      toast.success("Wallet connected and verified! 🎉");
       window.location.reload();
     } catch (err: any) {
+      console.error("Connect error:", err);
       if (err.code === 4001) {
         toast.error("Connection rejected — please approve the request.");
       } else {
-        toast.error(err.message ?? "Connection failed");
+        toast.error(err.message || "Connection failed");
       }
     } finally {
       setConnecting(false);
@@ -101,9 +117,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     if (!confirm("Remove wallet from your account and sign out?")) return;
 
     try {
-      const res = await fetch("/api/user/wallet", {
-        method: "DELETE",
-      });
+      const res = await fetch("/api/user/wallet", { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error || "Failed to disconnect");
