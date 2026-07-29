@@ -29,6 +29,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
     setConnecting(true);
     try {
+      // ✅ ALWAYS request accounts – opens wallet approval popup
       const accounts: string[] = await window.ethereum.request({
         method: "eth_requestAccounts",
       });
@@ -41,6 +42,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       const address = accounts[0];
 
+      // ✅ Check if wallet is already linked to another account
       const checkRes = await fetch(`/api/user/by-wallet?address=${address}`);
       const checkData = await checkRes.json();
 
@@ -50,6 +52,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         return;
       }
 
+      // ✅ Link wallet to user account
       const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -63,9 +66,12 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       }
 
       setWallet(address);
-      toast.success("Wallet connected! 🎉");
+      
+      // ✅ Update session without page reload
       await update({ walletAddress: address });
-      window.location.reload();
+      
+      toast.success("Wallet connected! 🎉");
+      // ❌ Removed: window.location.reload();
     } catch (err: any) {
       console.error("Connect error:", err);
       if (err.code === 4001) {
@@ -78,6 +84,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     }
   }
 
+  // ✅ Disconnect wallet – removes wallet from account AND session
   async function disconnect() {
     if (!wallet) return;
 
@@ -88,16 +95,19 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         toast.error(data.error || "Failed to disconnect");
         return;
       }
-
+      
       toast.success("Wallet disconnected");
       setWallet(null);
+      
+      // ✅ Update session without page reload
       await update({ walletAddress: null });
-      window.location.reload();
+      // ❌ Removed: window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Disconnect failed");
     }
   }
 
+  // ✅ Copy wallet address to clipboard
   async function copyAddress() {
     if (!wallet) return;
     try {
@@ -112,7 +122,12 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     if (typeof window !== "undefined" && window.ethereum) {
       const handleAccountsChanged = (accounts: string[]) => {
         if (accounts.length > 0) {
-          window.location.reload();
+          // Update wallet in session when accounts change
+          const newAddress = accounts[0];
+          if (newAddress !== wallet) {
+            setWallet(newAddress);
+            update({ walletAddress: newAddress });
+          }
         }
       };
       window.ethereum.on("accountsChanged", handleAccountsChanged);
@@ -120,7 +135,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
       };
     }
-  }, []);
+  }, [wallet, update]);
 
   if (wallet) {
     return (
