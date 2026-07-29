@@ -30,7 +30,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
     setConnecting(true);
     try {
-      // 1️⃣ MANUAL: Connect wallet (opens wallet popup for account selection)
+      // 1️⃣ Connect wallet
       const accounts: string[] = await window.ethereum.request({
         method: "eth_requestAccounts",
       });
@@ -43,13 +43,13 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       const address = accounts[0];
 
-      // 2️⃣ MANUAL: Immediately ask for signature
+      // 2️⃣ Request signature
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const message = `Sign this message to verify ownership of wallet ${address} for Block Pass.`;
       const signature = await signer.signMessage(message);
 
-      // 3️⃣ Verify signature with backend
+      // 3️⃣ Verify signature
       const verifyRes = await fetch("/api/user/verify-wallet", {
         method: "POST",
         body: JSON.stringify({ walletAddress: address, signature, message }),
@@ -62,7 +62,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         return;
       }
 
-      // 4️⃣ Check if wallet is already linked to another account
+      // 4️⃣ Check if already linked
       const checkRes = await fetch(`/api/user/by-wallet?address=${address}`);
       const checkData = await checkRes.json();
 
@@ -72,7 +72,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         return;
       }
 
-      // 5️⃣ Link wallet to user account
+      // 5️⃣ Link wallet
       const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -86,10 +86,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       }
 
       setWallet(address);
-      
-      // ✅ Update session
       await update({ walletAddress: address });
-      
       toast.success("Wallet connected and verified! 🎉");
     } catch (err: any) {
       console.error("Connect error:", err);
@@ -113,7 +110,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         toast.error(data.error || "Failed to disconnect");
         return;
       }
-      
       toast.success("Wallet disconnected");
       setWallet(null);
       await update({ walletAddress: null });
