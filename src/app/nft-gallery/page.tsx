@@ -60,12 +60,12 @@ export default function NftGalleryPage() {
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      const abi = ["function safeMint(address to, string memory uri) external payable"];
+      // ✅ ABI without payable – mint is free (only gas)
+      const abi = ["function safeMint(address to, string memory uri) external"];
       const contract = new ethers.Contract(contractAddress, abi, signer);
 
-      const tx = await contract.safeMint(userAddress, metadataUrl, {
-        value: ethers.parseEther("0.0003"),
-      });
+      // ✅ No value – only gas fee required
+      const tx = await contract.safeMint(userAddress, metadataUrl);
 
       toast.loading("Minting in progress... (waiting for confirmation)", { id: "mint" });
 
@@ -94,8 +94,6 @@ export default function NftGalleryPage() {
       load();
     } catch (err: any) {
       console.error("Mint error:", err);
-      
-      // ✅ Clean error messages – NO browser alerts
       if (err.code === "ACTION_REJECTED" || err.message?.includes("rejected")) {
         toast.error("Transaction rejected by user", { id: "mint" });
       } else if (err.code === "INSUFFICIENT_FUNDS") {
