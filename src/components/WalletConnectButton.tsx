@@ -13,7 +13,6 @@ declare global {
   }
 }
 
-const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14a34";
 
 export function WalletConnectButton({ currentWallet }: { currentWallet?: string | null }) {
@@ -27,19 +26,23 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
   async function connect() {
     if (!window.ethereum) {
-      toast.error("MetaMask not found — install it from metamask.io");
+      toast.error(
+        "No EVM wallet found. Please install:\n" +
+        "• MetaMask\n" +
+        "• Coinbase Wallet\n" +
+        "• Trust Wallet\n" +
+        "• OKX Wallet\n" +
+        "• Bitget Wallet\n" +
+        "• Or any EVM-compatible wallet"
+      );
       return;
     }
 
     setConnecting(true);
     try {
-      // 1️⃣ Request account access (opens MetaMask)
-      const accounts: string[] = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
+      const accounts: string[] = await window.ethereum.request({ method: "eth_requestAccounts" });
       const address = accounts[0];
 
-      // 2️⃣ Switch to Base Sepolia (or add if missing)
       try {
         await window.ethereum.request({
           method: "wallet_switchEthereumChain",
@@ -47,7 +50,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         });
       } catch (switchError: any) {
         if (switchError.code === 4902) {
-          // Network not added → add it with user permission
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [
@@ -65,13 +67,11 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         }
       }
 
-      // 3️⃣ Request signature (verify wallet ownership)
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const message = `Sign this message to verify ownership of wallet ${address} for Block Pass.`;
       const signature = await signer.signMessage(message);
 
-      // 4️⃣ Verify signature with backend
       const verifyRes = await fetch("/api/user/verify-wallet", {
         method: "POST",
         body: JSON.stringify({ walletAddress: address, signature, message }),
@@ -81,7 +81,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         throw new Error(verifyData.error || "Signature verification failed");
       }
 
-      // 5️⃣ Link wallet to user account
       const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -170,7 +169,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       disabled={connecting}
       className="flex items-center gap-2 rounded-full bg-base-500 px-5 py-2.5 text-sm font-medium text-white shadow-glow disabled:opacity-60"
     >
-      <Wallet size={16} /> {connecting ? "Connecting…" : "Connect MetaMask"}
+      <Wallet size={16} /> {connecting ? "Connecting…" : "Connect Wallet"}
     </motion.button>
   );
 }
