@@ -12,7 +12,7 @@ function getProvider() {
   });
 }
 
-function getMinterWallet() {
+function getWallet() {
   const key = process.env.BACKEND_MINTER_PRIVATE_KEY;
   if (!key) throw new Error("BACKEND_MINTER_PRIVATE_KEY is not configured");
   return new ethers.Wallet(key, getProvider());
@@ -21,7 +21,7 @@ function getMinterWallet() {
 function getContract() {
   const address = process.env.NEXT_PUBLIC_POAP_CONTRACT_ADDRESS;
   if (!address) throw new Error("NEXT_PUBLIC_POAP_CONTRACT_ADDRESS is not configured");
-  return new ethers.Contract(address, POAP_ABI, getMinterWallet());
+  return new ethers.Contract(address, POAP_ABI, getWallet());
 }
 
 export async function mintAttendanceNFT(params: {
