@@ -43,7 +43,6 @@ export default function NftGalleryPage() {
   async function handleMint(nftId: string) {
     setMintingId(nftId);
     try {
-      // 1️⃣ Prepare mint
       const prepRes = await fetch("/api/nft/mint", {
         method: "POST",
         body: JSON.stringify({ nftId }),
@@ -53,36 +52,25 @@ export default function NftGalleryPage() {
 
       const { metadataUrl, contractAddress } = prepData;
 
-      // 2️⃣ Check for wallet
       if (!window.ethereum) {
-        throw new Error(
-          "No EVM wallet found. Please install MetaMask, Coinbase Wallet, Trust Wallet, OKX Wallet, Bitget Wallet, or any EVM-compatible wallet."
-        );
+        throw new Error("No EVM wallet found.");
       }
 
-      // 3️⃣ Get provider and signer – this will open the wallet if needed
       const provider = new ethers.BrowserProvider(window.ethereum);
-      
-      // ✅ This will prompt the user to connect if not already connected
-      // And if already connected, it will just get the signer
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      // 4️⃣ Contract ABI
       const abi = ["function safeMint(address to, string memory uri) external payable"];
       const contract = new ethers.Contract(contractAddress, abi, signer);
 
-      // 5️⃣ Send transaction with 0.0003 ETH
       const tx = await contract.safeMint(userAddress, metadataUrl, {
         value: ethers.parseEther("0.0003"),
       });
 
       toast.loading("Minting in progress... (waiting for confirmation)", { id: "mint" });
 
-      // 6️⃣ Wait for transaction to be mined
       const receipt = await tx.wait();
 
-      // Extract tokenId from logs
       let tokenId = "0";
       if (receipt.logs && receipt.logs.length > 0) {
         const log = receipt.logs[0];
@@ -91,7 +79,6 @@ export default function NftGalleryPage() {
         }
       }
 
-      // 7️⃣ Confirm with backend
       const confirmRes = await fetch("/api/nft/confirm", {
         method: "POST",
         body: JSON.stringify({
@@ -104,16 +91,19 @@ export default function NftGalleryPage() {
       if (!confirmRes.ok) throw new Error(confirmData.error || "Confirmation failed");
 
       toast.success("NFT minted on-chain! 🎉", { id: "mint" });
-      load(); // refresh gallery
+      load();
     } catch (err: any) {
       console.error("Mint error:", err);
+      
+      // ✅ Clean error messages – NO browser alerts
       if (err.code === "ACTION_REJECTED" || err.message?.includes("rejected")) {
-        toast.error("Transaction rejected", { id: "mint" });
+        toast.error("Transaction rejected by user", { id: "mint" });
       } else if (err.code === "INSUFFICIENT_FUNDS") {
         toast.error("Insufficient funds for gas", { id: "mint" });
-      } else if (err.code === -32002) {
-        // Pending request already exists
-        toast.error("A wallet request is already pending. Please check MetaMask.", { id: "mint" });
+      } else if (err.message?.includes("missing revert data")) {
+        toast.error("Contract mint failed. Please check: metadata URL, contract address, or mint price.", { id: "mint" });
+      } else if (err.message?.includes("execution reverted")) {
+        toast.error("Contract execution reverted. Check contract conditions.", { id: "mint" });
       } else {
         toast.error(err.message || "Minting failed", { id: "mint" });
       }
