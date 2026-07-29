@@ -22,22 +22,20 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
   }, [currentWallet]);
 
   async function connect() {
-    // ✅ If no wallet, silently return
     if (!window.ethereum) {
+      toast.error("No EVM wallet found. Please install MetaMask, Coinbase Wallet, Trust Wallet, OKX Wallet, Bitget Wallet, or any EVM-compatible wallet.");
       return;
     }
 
     setConnecting(true);
     try {
-      // ✅ ONLY check if already connected – NO popup
+      // ✅ ALWAYS request accounts – opens the wallet connection prompt
       const accounts: string[] = await window.ethereum.request({
-        method: "eth_accounts",
+        method: "eth_requestAccounts",
       });
 
       if (accounts.length === 0) {
-        toast.error(
-          "No wallet connected. Please open your wallet extension and unlock it, then click 'Connect Wallet' again."
-        );
+        toast.error("No accounts found. Please unlock your wallet.");
         setConnecting(false);
         return;
       }
@@ -68,11 +66,15 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       }
 
       setWallet(address);
-      toast.success("Wallet linked! 🎉");
+      toast.success("Wallet connected! 🎉");
       window.location.reload();
     } catch (err: any) {
       console.error("Connect error:", err);
-      toast.error(err.message || "Connection failed");
+      if (err.code === 4001) {
+        toast.error("Connection rejected — please approve the request.");
+      } else {
+        toast.error(err.message || "Connection failed");
+      }
     } finally {
       setConnecting(false);
     }
