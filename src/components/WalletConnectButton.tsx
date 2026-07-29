@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { Wallet, Check } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { Wallet, Check, LogOut } from "lucide-react";
+import { signIn, signOut, useSession } from "next-auth/react";
 
 declare global {
   interface Window {
@@ -15,6 +15,7 @@ declare global {
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14a34"; // 84532
 
 export function WalletConnectButton({ currentWallet }: { currentWallet?: string | null }) {
+  const { data: session } = useSession();
   const [connecting, setConnecting] = useState(false);
   const [wallet, setWallet] = useState(currentWallet ?? null);
 
@@ -77,24 +78,32 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         } else {
           toast.error(data.error || "Could not link wallet");
         }
+        setConnecting(false);
         return;
       }
 
       setWallet(address);
       toast.success("Wallet connected!");
 
-      // ✅ Auto sign in with wallet
-      const signInRes = await signIn("credentials", {
-        walletAddress: address,
-        redirect: false,
-      });
-
-      if (signInRes?.error) {
-        toast.error("Auto sign-in failed, but wallet is connected.");
-      } else {
-        toast.success("Signed in with wallet! 🎉");
-        window.location.reload();
+      // ✅ Attempt auto sign‑in with wallet
+      try {
+        const signInRes = await signIn("credentials", {
+          walletAddress: address,
+          redirect: false,
+        });
+        if (signInRes?.error) {
+          console.warn("Auto sign-in failed:", signInRes.error);
+          toast.error("Auto sign-in failed, but wallet is linked.");
+        } else {
+          toast.success("Signed in with wallet! 🎉");
+        }
+      } catch (err) {
+        console.warn("Auto sign-in error:", err);
+        toast.error("Auto sign-in error, but wallet is linked.");
       }
+
+      // ✅ Reload to refresh session
+      window.location.reload();
     } catch (err: any) {
       if (err.code === 4001) {
         toast.error("Connection rejected — please approve the request.");
@@ -103,6 +112,30 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       }
     } finally {
       setConnecting(false);
+    }
+  }
+
+  async function disconnect() {
+    if (!wallet) return;
+    if (!confirm("Remove wallet from your account and sign out?")) return;
+
+    try {
+      // Remove wallet from user
+      const res = await fetch("/api/user/wallet", {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Failed to disconnect");
+        return;
+      }
+      toast.success("Wallet disconnected");
+      setWallet(null);
+      // Sign out from NextAuth
+      await signOut({ redirect: false });
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || "Disconnect failed");
     }
   }
 
@@ -122,8 +155,17 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
   if (wallet) {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-400">
-        <Check size={14} /> {wallet.slice(0, 6)}…{wallet.slice(-4)}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-400">
+          <Check size={14} /> {wallet.slice(0, 6)}…{wallet.slice(-4)}
+        </div>
+        <button
+          onClick={disconnect}
+          className="rounded-full p-2 text-red-400 hover:bg-red-500/10 transition-colors"
+          aria-label="Disconnect wallet"
+        >
+          <LogOut size={16} />
+        </button>
       </div>
     );
   }
