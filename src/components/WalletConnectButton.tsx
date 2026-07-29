@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check, LogOut, Copy } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { ethers } from "ethers";
 
 declare global {
   interface Window {
@@ -29,7 +30,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
     setConnecting(true);
     try {
-      // ✅ ALWAYS request accounts – opens wallet approval popup
+      // 1️⃣ MANUAL: Connect wallet (opens wallet popup for account selection)
       const accounts: string[] = await window.ethereum.request({
         method: "eth_requestAccounts",
       });
@@ -42,17 +43,36 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       const address = accounts[0];
 
-      // ✅ Check if wallet is already linked to another account
-      const checkRes = await fetch(`/api/user/by-wallet?address=${address}`);
-      const checkData = await checkRes.json();
+      // 2️⃣ MANUAL: Immediately ask for signature
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const message = `Sign this message to verify ownership of wallet ${address} for Block Pass.`;
+      const signature = await signer.signMessage(message);
 
-      if (checkData.user && checkData.user.id !== (session?.user as any)?.id) {
-        toast.error(`This wallet is already connected to "${checkData.user.name || checkData.user.email}". Please use a different wallet.`);
+      // 3️⃣ Verify signature with backend
+      const verifyRes = await fetch("/api/user/verify-wallet", {
+        method: "POST",
+        body: JSON.stringify({ walletAddress: address, signature, message }),
+      });
+      const verifyData = await verifyRes.json();
+
+      if (!verifyRes.ok) {
+        toast.error(verifyData.error || "Signature verification failed");
         setConnecting(false);
         return;
       }
 
-      // ✅ Link wallet to user account
+      // 4️⃣ Check if wallet is already linked to another account
+      const checkRes = await fetch(`/api/user/by-wallet?address=${address}`);
+      const checkData = await checkRes.json();
+
+      if (checkData.user && checkData.user.id !== (session?.user as any)?.id) {
+        toast.error(`This wallet is already connected to another account.`);
+        setConnecting(false);
+        return;
+      }
+
+      // 5️⃣ Link wallet to user account
       const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -67,15 +87,14 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       setWallet(address);
       
-      // ✅ Update session without page reload
+      // ✅ Update session
       await update({ walletAddress: address });
       
-      toast.success("Wallet connected! 🎉");
-      // ❌ Removed: window.location.reload();
+      toast.success("Wallet connected and verified! 🎉");
     } catch (err: any) {
       console.error("Connect error:", err);
       if (err.code === 4001) {
-        toast.error("Connection rejected — please approve the request.");
+        toast.error("Connection or signature rejected — please approve the request.");
       } else {
         toast.error(err.message || "Connection failed");
       }
@@ -84,7 +103,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     }
   }
 
-  // ✅ Disconnect wallet – removes wallet from account AND session
   async function disconnect() {
     if (!wallet) return;
 
@@ -98,16 +116,12 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       
       toast.success("Wallet disconnected");
       setWallet(null);
-      
-      // ✅ Update session without page reload
       await update({ walletAddress: null });
-      // ❌ Removed: window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Disconnect failed");
     }
   }
 
-  // ✅ Copy wallet address to clipboard
   async function copyAddress() {
     if (!wallet) return;
     try {
@@ -122,7 +136,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     if (typeof window !== "undefined" && window.ethereum) {
       const handleAccountsChanged = (accounts: string[]) => {
         if (accounts.length > 0) {
-          // Update wallet in session when accounts change
           const newAddress = accounts[0];
           if (newAddress !== wallet) {
             setWallet(newAddress);
