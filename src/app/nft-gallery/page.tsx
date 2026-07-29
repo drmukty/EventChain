@@ -43,7 +43,6 @@ export default function NftGalleryPage() {
   async function handleMint(nftId: string) {
     setMintingId(nftId);
     try {
-      // 1️⃣ Prepare mint
       const prepRes = await fetch("/api/nft/mint", {
         method: "POST",
         body: JSON.stringify({ nftId }),
@@ -53,33 +52,27 @@ export default function NftGalleryPage() {
 
       const { metadataUrl, contractAddress } = prepData;
 
-      // 2️⃣ Check if MetaMask is available
       if (!window.ethereum) {
-        throw new Error("MetaMask not installed");
+        throw new Error(
+          "No EVM wallet found. Please install MetaMask, Coinbase Wallet, Trust Wallet, OKX Wallet, Bitget Wallet, or any EVM-compatible wallet."
+        );
       }
 
-      // 3️⃣ Get provider and signer
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      // 4️⃣ Contract ABI (only the mint function)
-      const abi = [
-        "function safeMint(address to, string memory uri) external payable",
-      ];
+      const abi = ["function safeMint(address to, string memory uri) external payable"];
       const contract = new ethers.Contract(contractAddress, abi, signer);
 
-      // 5️⃣ Send transaction with 0.0003 ETH
       const tx = await contract.safeMint(userAddress, metadataUrl, {
         value: ethers.parseEther("0.0003"),
       });
 
       toast.loading("Minting in progress... (waiting for confirmation)", { id: "mint" });
 
-      // 6️⃣ Wait for transaction to be mined
       const receipt = await tx.wait();
 
-      // Extract tokenId from logs
       let tokenId = "0";
       if (receipt.logs && receipt.logs.length > 0) {
         const log = receipt.logs[0];
@@ -88,7 +81,6 @@ export default function NftGalleryPage() {
         }
       }
 
-      // 7️⃣ Confirm with backend
       const confirmRes = await fetch("/api/nft/confirm", {
         method: "POST",
         body: JSON.stringify({
@@ -101,7 +93,7 @@ export default function NftGalleryPage() {
       if (!confirmRes.ok) throw new Error(confirmData.error || "Confirmation failed");
 
       toast.success("NFT minted on-chain! 🎉", { id: "mint" });
-      load(); // refresh gallery
+      load();
     } catch (err: any) {
       console.error("Mint error:", err);
       if (err.code === "ACTION_REJECTED" || err.message?.includes("rejected")) {
@@ -126,20 +118,16 @@ export default function NftGalleryPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-16">
-      {/* Header with Wallet Connect */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="font-display text-3xl font-semibold">Your POAP Gallery</h1>
-          <p className="mt-2 text-fg-muted">
-            Every verified attendance badge – mint yours on‑chain.
-          </p>
+          <p className="mt-2 text-fg-muted">Every verified attendance badge – mint yours on‑chain.</p>
         </div>
         <div className="mt-1">
           <WalletConnectButton currentWallet={(session?.user as any)?.walletAddress} />
         </div>
       </div>
 
-      {/* Wallet prompt if no wallet */}
       {!hasWallet && nfts.length > 0 && (
         <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
           💡 Connect your wallet above to mint your badges on‑chain.
@@ -164,7 +152,6 @@ export default function NftGalleryPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="glass-panel overflow-hidden rounded-2xl shadow-glass transition-all hover:shadow-glow"
               >
-                {/* Header image / placeholder */}
                 <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-base-500/30 to-violet-500/20">
                   <div className="hex-badge glass-panel flex h-24 w-24 items-center justify-center">
                     <Hexagon className="h-8 w-8 text-base-400" />
@@ -180,7 +167,6 @@ export default function NftGalleryPage() {
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="p-5">
                   <p className="font-display font-semibold">{nft.event.title}</p>
                   <p className="mt-1 text-xs text-fg-muted">
@@ -192,7 +178,6 @@ export default function NftGalleryPage() {
                       : "Not minted yet"}
                   </p>
 
-                  {/* Action buttons */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {!isMinted ? (
                       <button
