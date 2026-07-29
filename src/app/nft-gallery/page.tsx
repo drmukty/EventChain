@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
+import { ethers } from "ethers";
 import { Hexagon, ShieldCheck, ExternalLink, Loader2, Zap } from "lucide-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 
@@ -40,28 +41,72 @@ export default function NftGalleryPage() {
   useEffect(load, []);
 
   async function handleMint(nftId: string) {
-    if (!hasWallet) {
-      toast.error("Please connect your wallet first");
+    if (!window.ethereum) {
+      toast.error("No EVM wallet found");
       return;
     }
 
     setMintingId(nftId);
     try {
-      // ✅ User just triggers the API – backend does the mint
-      const res = await fetch("/api/nft/mint", {
+      // 1️⃣ Prepare mint from backend
+      const prepRes = await fetch("/api/nft/mint", {
         method: "POST",
         body: JSON.stringify({ nftId }),
       });
-      const data = await res.json();
+      const prepData = await prepRes.json();
+      if (!prepRes.ok) throw new Error(prepData.error || "Preparation failed");
 
-      if (!res.ok) {
-        throw new Error(data.error || "Minting failed");
+      const { metadataUrl, contractAddress } = prepData;
+
+      // 2️⃣ User signs the transaction (pays gas)
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+
+      const abi = ["function safeMint(address to, string memory uri) external"];
+      const contract = new ethers.Contract(contractAddress, abi, signer);
+
+      // 3️⃣ User pays gas
+      const tx = await contract.safeMint(userAddress, metadataUrl);
+
+      toast.loading("Minting in progress...", { id: "mint" });
+
+      const receipt = await tx.wait();
+
+      // 4️⃣ Extract tokenId
+      const iface = new ethers.Interface(abi);
+      let tokenId = "0";
+      for (const log of receipt.logs) {
+        try {
+          const parsedLog = iface.parseLog(log);
+          if (parsedLog?.name === "AttendanceMinted") {
+            tokenId = parsedLog.args.tokenId.toString();
+            break;
+          }
+        } catch {}
       }
 
-      toast.success("NFT minted on-chain! 🎉");
-      load(); // Refresh the list
+      // 5️⃣ Confirm with backend
+      const confirmRes = await fetch("/api/nft/confirm", {
+        method: "POST",
+        body: JSON.stringify({
+          nftId,
+          txHash: receipt.hash,
+          tokenId: tokenId,
+        }),
+      });
+      const confirmData = await confirmRes.json();
+      if (!confirmRes.ok) throw new Error(confirmData.error || "Confirmation failed");
+
+      toast.success("NFT minted on-chain! 🎉", { id: "mint" });
+      load();
     } catch (err: any) {
-      toast.error(err.message || "Minting failed");
+      console.error("Mint error:", err);
+      if (err.code === "ACTION_REJECTED") {
+        toast.error("Transaction rejected", { id: "mint" });
+      } else {
+        toast.error(err.message || "Minting failed", { id: "mint" });
+      }
     } finally {
       setMintingId(null);
     }
@@ -77,7 +122,6 @@ export default function NftGalleryPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-16">
-      {/* Header with Wallet Connect */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="font-display text-3xl font-semibold">Your POAP Gallery</h1>
@@ -112,7 +156,6 @@ export default function NftGalleryPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="glass-panel overflow-hidden rounded-2xl shadow-glass transition-all hover:shadow-glow"
               >
-                {/* Header image / placeholder */}
                 <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-base-500/30 to-violet-500/20">
                   <div className="hex-badge glass-panel flex h-24 w-24 items-center justify-center">
                     <Hexagon className="h-8 w-8 text-base-400" />
@@ -128,7 +171,6 @@ export default function NftGalleryPage() {
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="p-5">
                   <p className="font-display font-semibold">{nft.event.title}</p>
                   <p className="mt-1 text-xs text-fg-muted">
@@ -140,7 +182,6 @@ export default function NftGalleryPage() {
                       : "Not minted yet"}
                   </p>
 
-                  {/* Action buttons */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {!isMinted ? (
                       <button
