@@ -15,7 +15,6 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Wallet address required" }, { status: 400 });
   }
 
-  // Check if wallet is already linked to another user
   const existing = await prisma.user.findFirst({
     where: {
       walletAddress: walletAddress,
