@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check, LogOut, Copy } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 declare global {
   interface Window {
@@ -64,8 +64,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       setWallet(address);
       toast.success("Wallet connected! 🎉");
-      
-      // ✅ Update session with new wallet address
       await update({ walletAddress: address });
       window.location.reload();
     } catch (err: any) {
@@ -80,7 +78,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     }
   }
 
-  // ✅ Disconnect wallet – removes wallet from account AND session
   async function disconnect() {
     if (!wallet) return;
 
@@ -91,11 +88,9 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         toast.error(data.error || "Failed to disconnect");
         return;
       }
-      
+
       toast.success("Wallet disconnected");
       setWallet(null);
-      
-      // ✅ Remove wallet from session and reload
       await update({ walletAddress: null });
       window.location.reload();
     } catch (err: any) {
@@ -103,7 +98,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     }
   }
 
-  // ✅ Copy wallet address to clipboard
   async function copyAddress() {
     if (!wallet) return;
     try {
