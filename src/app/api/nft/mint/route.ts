@@ -3,8 +3,6 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { mintAttendanceNFT } from "@/lib/blockchain";
-import { notify } from "@/lib/notifications";
 
 const bodySchema = z.object({ nftId: z.string().min(1) });
 
@@ -47,36 +45,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already minted on-chain" }, { status: 400 });
   }
 
-  try {
-    const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
-    
-    const mint = await mintAttendanceNFT({
-      attendeeWallet: user.walletAddress,
-      eventId: nft.eventId,
-      metadataUrl,
-    });
+  // ✅ Only prepare – user will sign the transaction
+  const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
+  const contractAddress = process.env.NEXT_PUBLIC_POAP_CONTRACT_ADDRESS!;
 
-    const updated = await prisma.nFT.update({
-      where: { id: nft.id },
-      data: {
-        isOnChain: true,
-        txHash: mint.txHash,
-        tokenId: mint.tokenId,
-        contractAddr: mint.contractAddress,
-        chainId: mint.chainId,
-      },
-    });
-
-    await notify(userId, {
-      type: "NFT_MINTED",
-      title: "Your POAP has been minted! 🎨",
-      message: `Your on-chain Proof of Attendance for ${nft.event.title} is live on Base Sepolia.`,
-      metadata: { eventId: nft.eventId, nftId: nft.id },
-    });
-
-    return NextResponse.json({ nft: updated });
-  } catch (err) {
-    console.error("Mint failed:", err);
-    return NextResponse.json({ error: "Minting failed — try again shortly" }, { status: 502 });
-  }
+  return NextResponse.json({
+    metadataUrl,
+    contractAddress,
+    chainId: 84532,
+    nftId: nft.id,
+    eventId: nft.eventId,
+  });
 }
