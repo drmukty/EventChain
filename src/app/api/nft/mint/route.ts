@@ -50,7 +50,6 @@ export async function POST(req: Request) {
   try {
     const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
     
-    // ✅ Backend mints (has MINTER_ROLE)
     const mint = await mintAttendanceNFT({
       attendeeWallet: user.walletAddress,
       eventId: nft.eventId,
