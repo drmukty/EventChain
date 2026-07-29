@@ -49,8 +49,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already minted on-chain" }, { status: 400 });
   }
 
-  // ✅ Generate metadata URL (with event details)
-  const metadataUrl = `${process.env.NEXTAUTH_URL}/api/nft/metadata/${nft.eventId}`;
+  // ✅ Fixed: Use NEXT_PUBLIC_APP_URL instead of NEXTAUTH_URL
+  const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
 
   // ✅ Contract address from environment
   const contractAddress = process.env.NEXT_PUBLIC_POAP_CONTRACT_ADDRESS!;
