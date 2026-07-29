@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check, LogOut } from "lucide-react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 
 declare global {
   interface Window {
@@ -15,7 +15,6 @@ declare global {
 const BASE_SEPOLIA_CHAIN_ID_HEX = "0x14a34"; // 84532
 
 export function WalletConnectButton({ currentWallet }: { currentWallet?: string | null }) {
-  const { data: session } = useSession();
   const [connecting, setConnecting] = useState(false);
   const [wallet, setWallet] = useState(currentWallet ?? null);
 
@@ -84,25 +83,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       setWallet(address);
       toast.success("Wallet connected!");
-
-      // ✅ Attempt auto sign‑in with wallet
-      try {
-        const signInRes = await signIn("credentials", {
-          walletAddress: address,
-          redirect: false,
-        });
-        if (signInRes?.error) {
-          console.warn("Auto sign-in failed:", signInRes.error);
-          toast.error("Auto sign-in failed, but wallet is linked.");
-        } else {
-          toast.success("Signed in with wallet! 🎉");
-        }
-      } catch (err) {
-        console.warn("Auto sign-in error:", err);
-        toast.error("Auto sign-in error, but wallet is linked.");
-      }
-
-      // ✅ Reload to refresh session
+      // ✅ Reload to refresh session with wallet address
       window.location.reload();
     } catch (err: any) {
       if (err.code === 4001) {
@@ -120,7 +101,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     if (!confirm("Remove wallet from your account and sign out?")) return;
 
     try {
-      // Remove wallet from user
       const res = await fetch("/api/user/wallet", {
         method: "DELETE",
       });
@@ -131,7 +111,6 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       }
       toast.success("Wallet disconnected");
       setWallet(null);
-      // Sign out from NextAuth
       await signOut({ redirect: false });
       window.location.reload();
     } catch (err: any) {
