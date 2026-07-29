@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { mintAttendanceNFT } from "@/lib/blockchain";
+import { notify } from "@/lib/notifications";
 
 const bodySchema = z.object({ nftId: z.string().min(1) });
 
@@ -20,10 +22,7 @@ export async function POST(req: Request) {
   });
 
   if (!user?.walletAddress) {
-    return NextResponse.json(
-      { error: "Connect your wallet first" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Connect a wallet first" }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
@@ -48,16 +47,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already minted on-chain" }, { status: 400 });
   }
 
-  // ✅ Use NEXT_PUBLIC_APP_URL for metadata
-  const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
+  try {
+    const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
+    
+    // ✅ Backend mints (has MINTER_ROLE)
+    const mint = await mintAttendanceNFT({
+      attendeeWallet: user.walletAddress,
+      eventId: nft.eventId,
+      metadataUrl,
+    });
 
-  // ✅ Contract address from environment
-  const contractAddress = process.env.NEXT_PUBLIC_POAP_CONTRACT_ADDRESS!;
+    const updated = await prisma.nFT.update({
+      where: { id: nft.id },
+      data: {
+        isOnChain: true,
+        txHash: mint.txHash,
+        tokenId: mint.tokenId,
+        contractAddr: mint.contractAddress,
+        chainId: mint.chainId,
+      },
+    });
 
-  return NextResponse.json({
-    metadataUrl,
-    contractAddress,
-    chainId: 84532, // Base Sepolia
-    nftId: nft.id,
-  });
+    await notify(userId, {
+      type: "NFT_MINTED",
+      title: "Your POAP has been minted! 🎨",
+      message: `Your on-chain Proof of Attendance for ${nft.event.title} is live on Base Sepolia.`,
+      metadata: { eventId: nft.eventId, nftId: nft.id },
+    });
+
+    return NextResponse.json({ nft: updated });
+  } catch (err) {
+    console.error("Mint failed:", err);
+    return NextResponse.json({ error: "Minting failed — try again shortly" }, { status: 502 });
+  }
 }
