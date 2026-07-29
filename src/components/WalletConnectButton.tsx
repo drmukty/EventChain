@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check } from "lucide-react";
+import { signIn } from "next-auth/react";
 
 declare global {
   interface Window {
@@ -56,6 +57,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         }
       }
 
+      // ✅ Link wallet to user account
       const res = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -79,8 +81,20 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       }
 
       setWallet(address);
-      toast.success("Wallet connected successfully!");
-      window.location.reload();
+      toast.success("Wallet connected!");
+
+      // ✅ Auto sign in with wallet
+      const signInRes = await signIn("credentials", {
+        walletAddress: address,
+        redirect: false,
+      });
+
+      if (signInRes?.error) {
+        toast.error("Auto sign-in failed, but wallet is connected.");
+      } else {
+        toast.success("Signed in with wallet! 🎉");
+        window.location.reload();
+      }
     } catch (err: any) {
       if (err.code === 4001) {
         toast.error("Connection rejected — please approve the request.");
