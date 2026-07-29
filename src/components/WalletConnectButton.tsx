@@ -29,20 +29,32 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
     setConnecting(true);
     try {
-      // ✅ ONLY get the wallet address – no popup, no signature
+      // ✅ ONLY check if already connected – NO popup
       const accounts: string[] = await window.ethereum.request({
         method: "eth_accounts",
       });
 
       if (accounts.length === 0) {
-        toast.error("No wallet connected. Please open your wallet and connect.");
+        toast.error(
+          "No wallet connected. Please open your wallet extension and unlock it, then click 'Connect Wallet' again."
+        );
         setConnecting(false);
         return;
       }
 
       const address = accounts[0];
 
-      // ✅ Just link the wallet to the user account (no signature)
+      // ✅ Check if wallet is already linked to another account
+      const checkRes = await fetch(`/api/user/by-wallet?address=${address}`);
+      const checkData = await checkRes.json();
+
+      if (checkData.user && checkData.user.id !== (session?.user as any)?.id) {
+        toast.error(`This wallet is already connected to "${checkData.user.name || checkData.user.email}". Please use a different wallet.`);
+        setConnecting(false);
+        return;
+      }
+
+      // ✅ Link wallet to user account
       const linkRes = await fetch("/api/user/wallet", {
         method: "PATCH",
         body: JSON.stringify({ walletAddress: address }),
@@ -50,17 +62,13 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
       const linkData = await linkRes.json();
 
       if (!linkRes.ok) {
-        if (linkData.error?.includes("already linked")) {
-          toast.error(`This wallet is already connected to another account.`);
-        } else {
-          toast.error(linkData.error || "Could not link wallet");
-        }
+        toast.error(linkData.error || "Could not link wallet");
         setConnecting(false);
         return;
       }
 
       setWallet(address);
-      toast.success("Wallet linked! You can now mint NFTs.");
+      toast.success("Wallet linked! 🎉");
       window.location.reload();
     } catch (err: any) {
       console.error("Connect error:", err);
