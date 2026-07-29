@@ -17,7 +17,6 @@ export async function GET() {
   });
 
   const nftPromises = checkIns.map(async (checkIn) => {
-    // ✅ Include event when checking existing NFT
     const existing = await prisma.nFT.findFirst({
       where: {
         userId,
@@ -27,7 +26,6 @@ export async function GET() {
     });
     if (existing) return existing;
 
-    // ✅ Create new NFT with event included
     return prisma.nFT.create({
       data: {
         userId,
