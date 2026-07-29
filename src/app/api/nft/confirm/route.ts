@@ -42,7 +42,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already minted" }, { status: 400 });
   }
 
-  // ✅ Update the NFT record
   const updated = await prisma.nFT.update({
     where: { id: nftId },
     data: {
