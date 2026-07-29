@@ -25,9 +25,9 @@ type NFT = {
 
 export default function NftGalleryPage() {
   const { data: session } = useSession();
-  const [nfts, setNfts] = useState<NFT[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [mintingId, setMintingId] = useState<string | null>(null);
+  const [nfts, setNfts] useState<NFT[]>([]);
+  const [loading, setLoading] useState(true);
+  const [mintingId, setMintingId] useState<string | null>(null);
 
   const hasWallet = !!(session?.user as any)?.walletAddress;
 
@@ -41,11 +41,7 @@ export default function NftGalleryPage() {
   useEffect(load, []);
 
   async function handleMint(nftId: string) {
-    if (!hasWallet) {
-      toast.error("Please connect your wallet first");
-      return;
-    }
-
+    // ✅ No hasWallet check – ethers will open MetaMask automatically
     setMintingId(nftId);
     try {
       // 1️⃣ Prepare mint
