@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Wallet, Check, LogOut, Copy } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 
 declare global {
   interface Window {
@@ -13,7 +13,7 @@ declare global {
 }
 
 export function WalletConnectButton({ currentWallet }: { currentWallet?: string | null }) {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const [connecting, setConnecting] = useState(false);
   const [wallet, setWallet] = useState(currentWallet ?? null);
 
@@ -64,6 +64,9 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
 
       setWallet(address);
       toast.success("Wallet connected! 🎉");
+      
+      // ✅ Update session with new wallet address
+      await update({ walletAddress: address });
       window.location.reload();
     } catch (err: any) {
       console.error("Connect error:", err);
@@ -77,7 +80,7 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
     }
   }
 
-  // ✅ Disconnect instantly – NO browser confirmation popup
+  // ✅ Disconnect wallet – removes wallet from account AND session
   async function disconnect() {
     if (!wallet) return;
 
@@ -88,9 +91,12 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
         toast.error(data.error || "Failed to disconnect");
         return;
       }
+      
       toast.success("Wallet disconnected");
       setWallet(null);
-      await signOut({ redirect: false });
+      
+      // ✅ Remove wallet from session and reload
+      await update({ walletAddress: null });
       window.location.reload();
     } catch (err: any) {
       toast.error(err.message || "Disconnect failed");
