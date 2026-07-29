@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { eventId: string
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
   const metadata = {
-    name: `Block Pass — ${event.title}`,
+    name: `${event.title}`, // ✅ Just the event name
     description: `Proof of Attendance for "${event.title}" hosted by ${event.organizer?.name || "Block Pass"} at ${event.venue} on ${new Date(event.startsAt).toLocaleDateString()}.`,
     image: event.bannerUrl || `${process.env.NEXT_PUBLIC_APP_URL}/images/default-poap.png`,
     attributes: [
