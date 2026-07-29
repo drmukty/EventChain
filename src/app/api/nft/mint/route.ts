@@ -14,7 +14,6 @@ export async function POST(req: Request) {
 
   const userId = (session.user as any).id;
 
-  // ✅ Check if user has a wallet connected
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { walletAddress: true },
@@ -49,7 +48,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already minted on-chain" }, { status: 400 });
   }
 
-  // ✅ Fixed: Use NEXT_PUBLIC_APP_URL instead of NEXTAUTH_URL
+  // ✅ Use NEXT_PUBLIC_APP_URL for metadata
   const metadataUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/nft/metadata/${nft.eventId}`;
 
   // ✅ Contract address from environment
