@@ -12,16 +12,11 @@ function getProvider() {
   });
 }
 
-function getWallet() {
-  const key = process.env.BACKEND_MINTER_PRIVATE_KEY;
-  if (!key) throw new Error("BACKEND_MINTER_PRIVATE_KEY is not configured");
-  return new ethers.Wallet(key, getProvider());
-}
-
 function getContract() {
   const address = process.env.NEXT_PUBLIC_POAP_CONTRACT_ADDRESS;
   if (!address) throw new Error("NEXT_PUBLIC_POAP_CONTRACT_ADDRESS is not configured");
-  return new ethers.Contract(address, POAP_ABI, getWallet());
+  // ✅ No signer needed – read-only provider
+  return new ethers.Contract(address, POAP_ABI, getProvider());
 }
 
 export async function mintAttendanceNFT(params: {
@@ -30,6 +25,8 @@ export async function mintAttendanceNFT(params: {
   metadataUrl: string;
 }) {
   const contract = getContract();
+  
+  // ✅ Anyone can call – no wallet signing needed
   const tx = await contract.safeMint(params.attendeeWallet, params.metadataUrl);
   const receipt = await tx.wait();
 
