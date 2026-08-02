@@ -3,19 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Moon, Sun, Hexagon, Menu, X } from "lucide-react";
+import { Hexagon, Menu, X } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { NotificationBell } from "@/components/NotificationBell";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export function Navbar() {
-  const [isDark, setIsDark] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session } = useSession();
   const [isStaffAnywhere, setIsStaffAnywhere] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
-  }, [isDark]);
 
   useEffect(() => {
     if (!session) {
@@ -65,14 +61,9 @@ export function Navbar() {
         </button>
 
         <div className="flex items-center gap-3">
-          <motion.button
-            whileTap={{ scale: 0.9, rotate: 180 }}
-            onClick={() => setIsDark((v) => !v)}
-            className="rounded-full p-2 text-fg-muted hover:bg-gray-100 dark:hover:bg-white/5"
-            aria-label="Toggle theme"
-          >
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </motion.button>
+          <motion.div whileTap={{ scale: 0.96 }}>
+            <ThemeToggle />
+          </motion.div>
 
           <NotificationBell />
 
