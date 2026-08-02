@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 import { Wallet, Check, LogOut, Copy } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ethers } from "ethers";
+import Button from "@/components/ui/Button";
+import Badge from "@/components/ui/Badge";
 
 declare global {
   interface Window {
@@ -16,7 +18,7 @@ declare global {
 export function WalletConnectButton({ currentWallet }: { currentWallet?: string | null }) {
   const { data: session, update } = useSession();
   const [connecting, setConnecting] = useState(false);
-  const [wallet, setWallet] = useState(currentWallet ?? null);
+  const [wallet, setWallet] = useState<string | null>(currentWallet ?? null);
 
   useEffect(() => {
     setWallet(currentWallet ?? null);
@@ -149,34 +151,23 @@ export function WalletConnectButton({ currentWallet }: { currentWallet?: string 
   if (wallet) {
     return (
       <div className="flex items-center gap-2">
-        <button
-          onClick={copyAddress}
-          className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-          aria-label="Copy wallet address"
-        >
+        <Button variant="secondary" className="flex items-center gap-2 rounded-full border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors" onClick={copyAddress} aria-label="Copy wallet address">
           <Check size={14} />
           <span>{wallet.slice(0, 6)}…{wallet.slice(-4)}</span>
           <Copy size={12} className="opacity-50" />
-        </button>
-        <button
-          onClick={disconnect}
-          className="rounded-full p-2 text-red-400 hover:bg-red-500/10 transition-colors"
-          aria-label="Disconnect wallet"
-        >
+        </Button>
+        <Button variant="ghost" className="rounded-full p-2 text-red-400 hover:bg-red-500/10" onClick={disconnect} aria-label="Disconnect wallet">
           <LogOut size={16} />
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.96 }}
-      onClick={connect}
-      disabled={connecting}
-      className="flex items-center gap-2 rounded-full bg-base-500 px-5 py-2.5 text-sm font-medium text-white shadow-glow disabled:opacity-60"
-    >
-      <Wallet size={16} /> {connecting ? "Connecting…" : "Connect Wallet"}
-    </motion.button>
+    <motion.div whileTap={{ scale: 0.96 }}>
+      <Button variant="primary" className="flex items-center gap-2 rounded-full bg-base-500 px-5 py-2.5 text-sm font-medium text-white shadow-glow disabled:opacity-60" onClick={connect} disabled={connecting}>
+        <Wallet size={16} /> {connecting ? "Connecting…" : "Connect Wallet"}
+      </Button>
+    </motion.div>
   );
 }
