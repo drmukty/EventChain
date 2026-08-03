@@ -7,7 +7,6 @@ import { Wallet, Check, LogOut, Copy } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ethers } from "ethers";
 import Button from "@/components/ui/Button";
-import Badge from "@/components/ui/Badge";
 
 declare global {
   interface Window {
