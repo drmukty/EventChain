@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Users, CheckCircle2, Clock, XCircle, Hexagon, UserX, Plus } from "lucide-react";
 import Link from "next/link";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 type Stats = {
   totalEvents: number;
@@ -48,16 +50,15 @@ export default function DashboardPage() {
       ]
     : [];
 
-  const attendanceRate =
-    stats && stats.approved > 0 ? Math.round((stats.checkedIn / stats.approved) * 100) : 0;
+  const attendanceRate = stats && stats.approved > 0 ? Math.round((stats.checkedIn / stats.approved) * 100) : 0;
 
   // Loading skeleton for cards
   const LoadingCard = () => (
-    <div className="glass-panel rounded-2xl p-5 shadow-glass animate-pulse">
-      <div className="h-5 w-5 mb-3 bg-gray-700 rounded" />
-      <div className="h-8 w-16 bg-gray-700 rounded mb-2" />
-      <div className="h-3 w-20 bg-gray-700 rounded" />
-    </div>
+    <Card className="animate-pulse h-32">
+      <div className="h-5 w-5 mb-3 bg-gray-200 dark:bg-gray-800 rounded" />
+      <div className="h-8 w-16 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
+      <div className="h-3 w-20 bg-gray-200 dark:bg-gray-800 rounded" />
+    </Card>
   );
 
   return (
@@ -67,11 +68,10 @@ export default function DashboardPage() {
           <h1 className="font-display text-3xl font-semibold">Organizer dashboard</h1>
           <p className="mt-2 text-fg-muted">Live numbers across every event you manage.</p>
         </div>
-        <Link
-          href="/dashboard/events/new"
-          className="flex items-center gap-2 rounded-full bg-base-500 px-5 py-2.5 text-sm font-medium text-white shadow-glow hover:opacity-90 transition-opacity"
-        >
-          <Plus size={16} /> New event
+        <Link href="/dashboard/events/new" className="no-underline">
+          <Button variant="primary" className="inline-flex items-center gap-2 px-4 py-2">
+            <Plus size={16} /> New event
+          </Button>
         </Link>
       </div>
 
@@ -98,32 +98,36 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="glass-panel rounded-2xl p-5 shadow-glass hover:shadow-glow transition-shadow"
               >
-                <s.icon className="mb-3 h-5 w-5 text-base-400" />
-                <p className="font-display text-2xl font-semibold">{s.value}</p>
-                <p className="text-xs text-fg-muted">{s.label}</p>
+                <Card className="rounded-2xl p-5 shadow-glass hover:shadow-glow transition-shadow h-36 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <s.icon className="h-5 w-5 text-base-400" />
+                    <p className="text-xs text-fg-muted">{s.label}</p>
+                  </div>
+                  <div>
+                    <p className="font-display text-2xl font-semibold">{s.value}</p>
+                  </div>
+                </Card>
               </motion.div>
             ))}
           </div>
 
           {/* Manage Events CTA */}
           <div className="mt-10">
-            <div className="glass-panel rounded-2xl p-8 shadow-glass text-center">
-              <h2 className="font-display text-2xl font-semibold">
-                Manage Your Events
-              </h2>
+            <Card className="rounded-2xl p-8 shadow-glass text-center">
+              <h2 className="font-display text-2xl font-semibold">Manage Your Events</h2>
               <p className="mt-3 text-fg-muted">
                 View your events, review applications, assign volunteers,
                 manage your team, and monitor live QR check-ins.
               </p>
-              <Link
-                href="/dashboard/events"
-                className="mt-6 inline-flex items-center rounded-full bg-base-500 px-6 py-3 font-medium text-white shadow-glow hover:opacity-90 transition-opacity"
-              >
-                Manage My Events
-              </Link>
-            </div>
+              <div className="mt-6">
+                <Link href="/dashboard/events">
+                  <Button variant="primary" className="px-6 py-3">
+                    Manage My Events
+                  </Button>
+                </Link>
+              </div>
+            </Card>
           </div>
 
           {/* Charts Section */}
@@ -142,12 +146,12 @@ export default function DashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                       <XAxis dataKey="event" stroke="rgba(255,255,255,0.4)" fontSize={12} />
                       <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          background: "#0b0e17", 
+                      <Tooltip
+                        contentStyle={{
+                          background: "#0b0e17",
                           border: "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: "8px"
-                        }} 
+                          borderRadius: "8px",
+                        }}
                       />
                       <Bar dataKey="checkedIn" fill="#0052ff" radius={[6, 6, 0, 0]} />
                       <Bar dataKey="noShow" fill="#3a3f56" radius={[6, 6, 0, 0]} />
@@ -162,13 +166,13 @@ export default function DashboardPage() {
               <div className="flex items-center justify-center py-6">
                 <div className="relative h-32 w-32">
                   <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                    <circle 
-                      cx="50" 
-                      cy="50" 
-                      r="42" 
-                      fill="none" 
-                      stroke="rgba(255,255,255,0.08)" 
-                      strokeWidth="10" 
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.08)"
+                      strokeWidth="10"
                     />
                     <circle
                       cx="50"
@@ -188,7 +192,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-center text-xs text-fg-muted">
-                {stats.approved > 0 
+                {stats?.approved && stats.approved > 0
                   ? `of ${stats.approved} approved attendees checked in`
                   : "No approved attendees yet"}
               </p>
