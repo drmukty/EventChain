@@ -169,7 +169,7 @@ export default function ProfilePage() {
               </p>
               <button
                 onClick={() => {
-                  toast.info("Telegram connection coming soon");
+                  toast("Telegram connection coming soon");
                 }}
                 className="mt-3 rounded-full border border-white/20 px-4 py-2 text-sm hover:bg-white/5"
               >
