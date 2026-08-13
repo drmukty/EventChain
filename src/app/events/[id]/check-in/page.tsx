@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Loader2, QrCode, Key, Camera, RefreshCw, ExternalLink } from 'lucide-react';
+import { Loader2, QrCode, Key, Camera, RefreshCw } from 'lucide-react';
 import jsQR from 'jsqr';
 import toast from 'react-hot-toast';
 import ManualVerification from '@/components/ManualVerification';
@@ -46,26 +46,6 @@ export default function EventCheckInPage() {
     }
   }, [status, router, eventId]);
 
-  // Check camera permission status
-  const checkCameraPermission = async () => {
-    if (!navigator.permissions || !navigator.permissions.query) {
-      setCameraPermission('unsupported');
-      return;
-    }
-    try {
-      const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
-      setCameraPermission(result.state as 'prompt' | 'granted' | 'denied');
-      result.onchange = () => {
-        setCameraPermission(result.state as 'prompt' | 'granted' | 'denied');
-        if (result.state === 'granted') {
-          startCamera();
-        }
-      };
-    } catch {
-      setCameraPermission('unsupported');
-    }
-  };
-
   const startCamera = async () => {
     setCameraError(null);
     try {
@@ -83,13 +63,27 @@ export default function EventCheckInPage() {
       console.error('Camera error:', err);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCameraPermission('denied');
-        setCameraError('Camera access was denied. Please allow camera access in your browser settings and try again.');
+        const errorMsg = 'Camera access was denied. Please allow camera access in your browser settings and try again.';
+        setCameraError(errorMsg);
+        toast.error('Camera permission denied');
+        
+        // Show browser-specific instructions
+        if (navigator.userAgent.includes('Chrome')) {
+          toast.error('Click the lock icon in address bar → Site settings → Camera → Allow → Reload');
+        } else if (navigator.userAgent.includes('Firefox')) {
+          toast.error('Click the camera icon in address bar → Allow → Reload');
+        } else if (navigator.userAgent.includes('Safari')) {
+          toast.error('Go to Safari > Settings > Websites > Camera → Allow');
+        } else {
+          toast.error('Please allow camera access in your browser settings.');
+        }
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setCameraError('No camera found on this device.');
+        toast.error('No camera found');
       } else {
         setCameraError('Failed to start camera: ' + err.message);
+        toast.error('Could not access camera');
       }
-      toast.error(cameraError || 'Could not access camera');
     }
   };
 
@@ -171,10 +165,7 @@ export default function EventCheckInPage() {
 
   useEffect(() => {
     if (activeTab === 'qr' && eventId) {
-      checkCameraPermission();
-      if (cameraPermission === 'granted') {
-        startCamera();
-      }
+      startCamera();
     } else {
       stopCamera();
     }
@@ -182,24 +173,6 @@ export default function EventCheckInPage() {
       stopCamera();
     };
   }, [activeTab, eventId]);
-
-  useEffect(() => {
-    if (cameraPermission === 'granted') {
-      startCamera();
-    }
-  }, [cameraPermission]);
-
-  const openBrowserSettings = () => {
-    if (navigator.userAgent.includes('Chrome')) {
-      window.open('chrome://settings/content/camera', '_blank');
-    } else if (navigator.userAgent.includes('Firefox')) {
-      window.open('about:preferences#privacy', '_blank');
-    } else if (navigator.userAgent.includes('Safari')) {
-      toast.info('Please go to Safari > Settings > Websites > Camera and allow for this site.');
-    } else {
-      toast.info('Please allow camera access in your browser settings.');
-    }
-  };
 
   if (status === 'loading' || loading) {
     return (
@@ -296,9 +269,7 @@ export default function EventCheckInPage() {
                                 Camera permission is required to scan QR codes.
                               </p>
                               <button
-                                onClick={() => {
-                                  startCamera();
-                                }}
+                                onClick={() => startCamera()}
                                 className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                               >
                                 Allow Camera
@@ -310,27 +281,17 @@ export default function EventCheckInPage() {
                               <p className="text-sm text-center text-red-400">
                                 {cameraError || 'Camera access denied.'}
                               </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                                To use the camera, please allow it in your browser settings.
-                              </p>
-                              <div className="flex flex-wrap gap-2 mt-3 justify-center">
-                                <button
-                                  onClick={() => {
-                                    startCamera();
-                                  }}
-                                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                                >
-                                  <RefreshCw size={16} />
-                                  Retry
-                                </button>
-                                <button
-                                  onClick={openBrowserSettings}
-                                  className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                                >
-                                  <ExternalLink size={16} />
-                                  Open Settings
-                                </button>
-                              </div>
+                              <button
+                                onClick={() => {
+                                  // Reset permission state and try again
+                                  setCameraPermission('prompt');
+                                  setTimeout(() => startCamera(), 500);
+                                }}
+                                className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                              >
+                                <RefreshCw size={16} />
+                                Retry
+                              </button>
                             </>
                           ) : (
                             <>
