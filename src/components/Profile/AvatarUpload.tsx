@@ -37,7 +37,6 @@ export default function AvatarUpload({ currentAvatar, onAvatarUpdate }: AvatarUp
     }
   };
 
-  // ✅ No confirmation popup – instantly removes avatar
   const handleRemove = async () => {
     setUploading(true);
     try {
