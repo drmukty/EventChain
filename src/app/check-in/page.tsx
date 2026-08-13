@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Loader2, QrCode, Key, Camera, RefreshCw, Settings, ExternalLink } from 'lucide-react';
+import { Loader2, QrCode, Key, Camera, RefreshCw, Settings } from 'lucide-react';
 import jsQR from 'jsqr';
 import toast from 'react-hot-toast';
 import ManualVerification from '@/components/ManualVerification';
@@ -55,7 +55,6 @@ export default function CheckInHomePage() {
     } else {
       stopCamera();
     }
-    // Re-check when page becomes visible (user returns from settings)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && activeTab === 'qr') {
         checkAndStartCamera();
@@ -69,13 +68,11 @@ export default function CheckInHomePage() {
   }, [activeTab, selectedEventId]);
 
   const checkAndStartCamera = async () => {
-    // Check permission state
     if (navigator.permissions && navigator.permissions.query) {
       try {
         const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
         const state = permissionStatus.state as 'prompt' | 'granted' | 'denied';
         setCameraState(state);
-        // Listen for changes
         permissionStatus.onchange = () => {
           const newState = permissionStatus.state as 'prompt' | 'granted' | 'denied';
           setCameraState(newState);
@@ -88,15 +85,12 @@ export default function CheckInHomePage() {
         if (state === 'granted') {
           await startCamera();
         } else if (state === 'prompt') {
-          // User hasn't decided yet – we'll show the "Allow Camera" button
           setCameraState('prompt');
         } else {
-          // denied
           setCameraState('denied');
           setCameraError('Camera access was denied. Please allow camera access in your browser settings.');
         }
       } catch (err) {
-        // Permissions API not supported – fallback
         setCameraState('unsupported');
         tryStartCameraDirect();
       }
@@ -221,7 +215,6 @@ export default function CheckInHomePage() {
   };
 
   const openSiteSettings = () => {
-    // Try to open browser's camera settings page
     const ua = navigator.userAgent.toLowerCase();
     let url = '';
     if (ua.includes('chrome')) {
@@ -229,16 +222,19 @@ export default function CheckInHomePage() {
     } else if (ua.includes('firefox')) {
       url = 'about:preferences#privacy';
     } else if (ua.includes('safari') && !ua.includes('chrome')) {
-      // Safari on iOS/macOS: can't open settings directly, but we can show a message
-      toast.info('Open Safari Settings > Websites > Camera and allow for this site.');
+      toast('Open Safari Settings > Websites > Camera and allow for this site.', {
+        icon: '🔧',
+        duration: 5000,
+      });
       return;
     } else {
-      toast.info('Please allow camera access in your browser settings.');
+      toast('Please allow camera access in your browser settings.', {
+        icon: '🔧',
+        duration: 5000,
+      });
       return;
     }
-    if (url) {
-      window.open(url, '_blank');
-    }
+    if (url) window.open(url, '_blank');
   };
 
   const renderCameraContent = () => {
