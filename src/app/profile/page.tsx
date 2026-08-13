@@ -8,11 +8,11 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { User, Mail, Lock, Save, Loader2, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
-import { AvatarUpload } from "@/components/Profile/AvatarUpload";
-import { StatsCard } from "@/components/Profile/StatsCard";
+import AvatarUpload from "@/components/Profile/AvatarUpload";
+import StatsCard from "@/components/Profile/StatsCard";
 
 export default function ProfilePage() {
-  const { data: session, update } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,11 +31,15 @@ export default function ProfilePage() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
+  // ✅ Fix: Handle session loading state properly
   useEffect(() => {
+    if (status === "loading") return;
+
     if (!session?.user) {
       router.push("/login");
       return;
     }
+
     const user = session.user as any;
     setName(user.name || "");
     setEmail(user.email || "");
@@ -47,7 +51,7 @@ export default function ProfilePage() {
       .then((d) => setStats(d))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [session, router]);
+  }, [session, status, router]);
 
   async function handleUpdateProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -111,12 +115,17 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) {
+  // ✅ Show loading state while session is being checked
+  if (status === "loading" || loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-base-400" />
       </div>
     );
+  }
+
+  if (!session?.user) {
+    return null;
   }
 
   return (
