@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyQRCode } from "@/lib/qr";
+import { markAttendanceAndMint } from "@/lib/checkin";
 
 const REASON_MESSAGES: Record<string, string> = {
   MALFORMED: "Invalid QR code format.",
@@ -11,32 +14,45 @@ const REASON_MESSAGES: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { payload, eventId } = await request.json();
 
-    console.log("📦 Received payload:", payload);
-    console.log("📌 Event ID:", eventId);
-
     if (!payload) {
-      console.warn("❌ Missing payload");
       return NextResponse.json(
         { error: "Missing QR payload" },
         { status: 400 }
       );
     }
 
+    if (!eventId) {
+      return NextResponse.json(
+        { error: "Event ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const membership = await prisma.teamMember.findUnique({
+      where: { eventId_userId: { eventId, userId: session.user.id } },
+    });
+    const isAdmin = (session.user as any).role === "ADMIN";
+    
+    if (!isAdmin && !(membership && ["OWNER", "ADMIN", "VOLUNTEER", "QR_SCANNER"].includes(membership.role))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const result = await verifyQRCode(payload);
-    console.log("🔍 verifyQRCode result:", result);
 
     if (!result.ok) {
-      console.warn(`❌ QR verification failed: ${result.reason}`);
       return NextResponse.json(
         { error: REASON_MESSAGES[result.reason] || "Invalid QR code", reason: result.reason },
         { status: 400 }
       );
     }
-
-    console.log(`✅ QR verified for application ${result.applicationId}`);
 
     const application = await prisma.application.findUnique({
       where: { id: result.applicationId },
@@ -44,23 +60,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (!application) {
-      console.warn("❌ Application not found");
       return NextResponse.json(
         { error: "Application not found" },
         { status: 404 }
       );
     }
 
-    // Check event match
     if (application.eventId !== eventId) {
-      console.warn(`❌ Event mismatch: QR event ${application.eventId} != selected ${eventId}`);
       return NextResponse.json(
         { error: "This QR code does not belong to the selected event." },
         { status: 400 }
       );
     }
 
-    // Check if already checked in
     const existing = await prisma.checkIn.findFirst({
       where: {
         eventId: application.eventId,
@@ -69,33 +81,31 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
-      console.warn(`❌ Already checked in for user ${application.userId}`);
       return NextResponse.json(
         { error: "Already checked in for this event" },
         { status: 400 }
       );
     }
 
-    // Create check‑in record
-    await prisma.checkIn.create({
-      data: {
-        applicationId: application.id,
-        eventId: application.eventId,
-        userId: application.userId,
-      },
-    });
-
-    console.log(`✅ Check-in successful for ${application.user.email}`);
+    const checkInResult = await markAttendanceAndMint(
+      application.id,
+      application.eventId,
+      application.userId,
+      session.user.id
+    );
 
     return NextResponse.json({
       success: true,
+      message: "Check-in successful!",
       attendee: {
         name: application.user.name,
         email: application.user.email,
       },
+      nft: checkInResult.nft,
+      certificate: checkInResult.certificate,
     });
   } catch (err) {
-    console.error("❌ Check‑in error:", err);
+    console.error("Check-in error:", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
