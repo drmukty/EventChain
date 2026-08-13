@@ -13,11 +13,16 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  if (!userId) {
+    return NextResponse.json({ error: "User ID not found" }, { status: 401 });
+  }
+
   const eventId = params.id;
   const applicationId = params.applicationId;
 
   const membership = await prisma.teamMember.findUnique({
-    where: { eventId_userId: { eventId, userId: session.user.id } },
+    where: { eventId_userId: { eventId, userId } },
   });
   const isAdmin = (session.user as any).role === "ADMIN";
   
