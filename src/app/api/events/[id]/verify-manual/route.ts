@@ -14,6 +14,11 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  if (!userId) {
+    return NextResponse.json({ error: "User ID not found" }, { status: 401 });
+  }
+
   const eventId = params.id;
   const { token } = await req.json();
 
@@ -25,7 +30,7 @@ export async function POST(
   }
 
   const membership = await prisma.teamMember.findUnique({
-    where: { eventId_userId: { eventId, userId: session.user.id } },
+    where: { eventId_userId: { eventId, userId } },
   });
   const isAdmin = (session.user as any).role === "ADMIN";
   
@@ -90,7 +95,7 @@ export async function POST(
         matchedToken.applicationId,
         eventId,
         matchedToken.application.userId,
-        session.user.id,
+        userId,
         tx
       );
 
