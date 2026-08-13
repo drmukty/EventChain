@@ -18,7 +18,7 @@ export default function EventCheckInPage() {
   const [loading, setLoading] = useState(true);
   const [eventTitle, setEventTitle] = useState('');
   const [scanStatus, setScanStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
-  const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const [cameraState, setCameraState] = useState<'loading' | 'prompt' | 'granted' | 'denied' | 'unsupported'>('loading');
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -46,6 +46,65 @@ export default function EventCheckInPage() {
     }
   }, [status, router, eventId]);
 
+  useEffect(() => {
+    if (activeTab === 'qr' && eventId) {
+      checkAndStartCamera();
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [activeTab, eventId]);
+
+  const checkAndStartCamera = async () => {
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        const state = permissionStatus.state as 'prompt' | 'granted' | 'denied';
+        setCameraState(state);
+        permissionStatus.onchange = () => {
+          const newState = permissionStatus.state as 'prompt' | 'granted' | 'denied';
+          setCameraState(newState);
+          if (newState === 'granted') {
+            startCamera();
+          } else if (newState === 'denied') {
+            stopCamera();
+            setCameraError('Camera access was denied. Please allow camera access in your browser settings.');
+          }
+        };
+        if (state === 'granted') {
+          await startCamera();
+        } else if (state === 'prompt') {
+          setCameraState('prompt');
+        } else {
+          setCameraState('denied');
+          setCameraError('Camera access was denied. Please allow camera access in your browser settings.');
+        }
+      } catch (err) {
+        setCameraState('unsupported');
+        tryStartCameraDirect();
+      }
+    } else {
+      setCameraState('unsupported');
+      tryStartCameraDirect();
+    }
+  };
+
+  const tryStartCameraDirect = async () => {
+    try {
+      await startCamera();
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraState('denied');
+        setCameraError('Camera access was denied. Please allow camera access in your browser settings.');
+      } else {
+        setCameraState('unsupported');
+        setCameraError('Could not access camera: ' + err.message);
+      }
+    }
+  };
+
   const startCamera = async () => {
     setCameraError(null);
     try {
@@ -57,33 +116,19 @@ export default function EventCheckInPage() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      setCameraPermission('granted');
+      setCameraState('granted');
       scanLoop();
     } catch (err: any) {
       console.error('Camera error:', err);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraPermission('denied');
-        const errorMsg = 'Camera access was denied. Please allow camera access in your browser settings and try again.';
-        setCameraError(errorMsg);
-        toast.error('Camera permission denied');
-        
-        // Show browser-specific instructions
-        if (navigator.userAgent.includes('Chrome')) {
-          toast.error('Click the lock icon in address bar → Site settings → Camera → Allow → Reload');
-        } else if (navigator.userAgent.includes('Firefox')) {
-          toast.error('Click the camera icon in address bar → Allow → Reload');
-        } else if (navigator.userAgent.includes('Safari')) {
-          toast.error('Go to Safari > Settings > Websites > Camera → Allow');
-        } else {
-          toast.error('Please allow camera access in your browser settings.');
-        }
+        setCameraState('denied');
+        setCameraError('Camera access was denied. Please allow camera access in your browser settings.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setCameraError('No camera found on this device.');
-        toast.error('No camera found');
       } else {
         setCameraError('Failed to start camera: ' + err.message);
-        toast.error('Could not access camera');
       }
+      toast.error(cameraError || 'Could not access camera');
     }
   };
 
@@ -163,16 +208,85 @@ export default function EventCheckInPage() {
     }, 3000);
   };
 
-  useEffect(() => {
-    if (activeTab === 'qr' && eventId) {
-      startCamera();
-    } else {
-      stopCamera();
+  const renderCameraContent = () => {
+    if (cameraState === 'granted') {
+      return (
+        <>
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+          />
+          <canvas ref={canvasRef} className="hidden" />
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-8 border-2 border-blue-500/60 rounded-lg"></div>
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
+            <div className="absolute left-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
+            <div className="absolute right-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
+          </div>
+        </>
+      );
     }
-    return () => {
-      stopCamera();
-    };
-  }, [activeTab, eventId]);
+
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-gray-900/10 dark:bg-gray-800/50 p-6 text-center">
+        {cameraState === 'loading' && (
+          <>
+            <Loader2 className="w-12 h-12 text-gray-400 animate-spin mb-4" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">Checking camera...</p>
+          </>
+        )}
+        {cameraState === 'prompt' && (
+          <>
+            <Camera className="w-12 h-12 text-gray-400 mb-4" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Camera access is required for QR scanning.
+            </p>
+            <button
+              onClick={() => startCamera()}
+              className="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            >
+              <Camera size={18} />
+              Allow Camera
+            </button>
+          </>
+        )}
+        {cameraState === 'denied' && (
+          <>
+            <Camera className="w-12 h-12 text-red-400 mb-4" />
+            <p className="text-sm text-red-400 font-medium">
+              {cameraError || 'Camera access denied.'}
+            </p>
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+              <p>To fix:</p>
+              <ol className="list-decimal list-inside text-left">
+                <li>Click the lock icon 🔒 in the address bar</li>
+                <li>Go to <strong>Site settings</strong> → <strong>Camera</strong></li>
+                <li>Change to <strong>Allow</strong> and reload the page</li>
+              </ol>
+            </div>
+            <button
+              onClick={() => startCamera()}
+              className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <RefreshCw size={16} />
+              Retry
+            </button>
+          </>
+        )}
+        {cameraState === 'unsupported' && (
+          <>
+            <Camera className="w-12 h-12 text-gray-400 mb-4" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {cameraError || 'Camera not available.'}
+            </p>
+          </>
+        )}
+      </div>
+    );
+  };
 
   if (status === 'loading' || loading) {
     return (
@@ -243,66 +357,7 @@ export default function EventCheckInPage() {
                 <div className="max-w-md mx-auto">
                   <div className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-black/5">
                     <div className="aspect-square relative">
-                      {cameraPermission === 'granted' ? (
-                        <>
-                          <video
-                            ref={videoRef}
-                            className="w-full h-full object-cover"
-                            muted
-                            playsInline
-                          />
-                          <canvas ref={canvasRef} className="hidden" />
-                          <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute inset-8 border-2 border-blue-500/60 rounded-lg"></div>
-                            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
-                            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
-                            <div className="absolute left-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
-                            <div className="absolute right-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full bg-gray-900/10 dark:bg-gray-800/50 p-4">
-                          {cameraPermission === 'prompt' ? (
-                            <>
-                              <Camera className="w-12 h-12 text-gray-400 mb-4" />
-                              <p className="text-sm text-center text-gray-600 dark:text-gray-300">
-                                Camera permission is required to scan QR codes.
-                              </p>
-                              <button
-                                onClick={() => startCamera()}
-                                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                              >
-                                Allow Camera
-                              </button>
-                            </>
-                          ) : cameraPermission === 'denied' ? (
-                            <>
-                              <Camera className="w-12 h-12 text-red-400 mb-4" />
-                              <p className="text-sm text-center text-red-400">
-                                {cameraError || 'Camera access denied.'}
-                              </p>
-                              <button
-                                onClick={() => {
-                                  // Reset permission state and try again
-                                  setCameraPermission('prompt');
-                                  setTimeout(() => startCamera(), 500);
-                                }}
-                                className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                              >
-                                <RefreshCw size={16} />
-                                Retry
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <Camera className="w-12 h-12 text-gray-400 mb-4" />
-                              <p className="text-sm text-center text-gray-600 dark:text-gray-300">
-                                Camera not available.
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      {renderCameraContent()}
                     </div>
                   </div>
                 </div>
