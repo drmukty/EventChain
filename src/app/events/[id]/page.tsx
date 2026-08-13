@@ -1,172 +1,251 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { Loader2, Calendar, MapPin, Users, Search } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { motion } from "framer-motion";
+import toast from "react-hot-toast";
+import { MapPin, Calendar, Users, ShieldCheck, Share2, Check, X, Edit } from "lucide-react";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  venue: string;
-  category: string;
-  startsAt: string;
-  endsAt: string;
-  capacity: number;
-  status: string;
-  bannerUrl?: string;
-  organizer: {
-    name: string;
-  };
-  _count?: {
-    applications: number;
-  };
-}
+export default function EventDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const [event, setEvent] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-export default function EventsBrowsePage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  // Apply modal state
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    fetch(`/api/events/${id}`)
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) {
+          setError(data.error ?? "Could not load this event");
+          return;
+        }
+        setEvent(data.event);
+      })
+      .catch(() => setError("Could not load this event"));
+  }, [id]);
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  async function handleApplySubmit() {
+    setSubmitting(true);
     try {
-      const res = await fetch('/api/events');
+      const res = await fetch(`/api/events/${id}/apply`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() || null }),
+      });
       const data = await res.json();
-      setEvents(data.events || []);
-    } catch (error) {
-      console.error('Fetch error:', error);
-      toast.error('Failed to load events');
+      if (!res.ok) throw new Error(data.error ?? "Could not apply");
+      toast.success(
+        data.application.status === "WAITLISTED"
+          ? `You're #${data.application.waitlistPosition} on the waitlist`
+          : "Application submitted!"
+      );
+      setShowApplyModal(false);
+      setReason("");
+    } catch (err: any) {
+      toast.error(err.message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
+  }
 
-  const filteredEvents = events.filter((event) => {
-    const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          event.venue.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || event.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  async function handleShare() {
+    const url = window.location.href;
 
-  const categories = ['all', ...new Set(events.map(e => e.category))];
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: event?.title || "Event",
+          text: `Check out "${event?.title}" on EventChain! 🎉`,
+          url: url,
+        });
+        return;
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          console.error("Share error:", e);
+        }
+        return;
+      }
+    }
 
-  if (loading) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Link copied to clipboard! 📋");
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        setCopied(true);
+        toast.success("Link copied! 📋");
+        setTimeout(() => setCopied(false), 3000);
+      } catch {
+        toast.error("Could not copy link. Please copy it manually.");
+        prompt("Copy this link:", url);
+      }
+    }
+  }
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      <div className="mx-auto max-w-4xl px-6 py-24 text-center">
+        <p className="text-fg-muted">{error}</p>
       </div>
     );
   }
 
+  if (!event) return <div className="mx-auto max-w-4xl px-6 py-24 text-fg-muted">Loading event…</div>;
+
+  const seatsLeft = Math.max(0, event.capacity - event._count.applications);
+  const isOrganizer = session?.user && (session.user as any).id === event.organizerId;
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Browse Events</h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          Discover and register for upcoming events
-        </p>
-      </div>
-
-      {/* Search & Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-8">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search events by title or venue..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-        >
-          {categories.map(cat => (
-            <option key={cat} value={cat}>
-              {cat === 'all' ? 'All Categories' : cat}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Events Grid */}
-      {filteredEvents.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No events found matching your criteria.</p>
-        </div>
+    <div className="mx-auto max-w-4xl px-6 py-16">
+      {event.bannerUrl ? (
+        <img
+          src={event.bannerUrl}
+          alt={event.title}
+          className="h-56 w-full rounded-3xl object-cover"
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => (
+        <div className="h-56 w-full rounded-3xl bg-gradient-to-br from-base-500/30 to-violet-500/20" />
+      )}
+
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <span className="text-xs font-medium uppercase tracking-wide text-base-400">{event.category}</span>
+            <h1 className="mt-2 font-display text-4xl font-semibold">{event.title}</h1>
+            <p className="mt-2 text-fg-muted">Hosted by {event.organizer?.name}</p>
+          </div>
+          {/* ✅ Edit button - only visible to organizer */}
+          {isOrganizer && (
             <Link
-              key={event.id}
-              href={`/events/${event.id}`}
-              className="group bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-lg transition-shadow overflow-hidden border border-gray-200 dark:border-gray-700"
+              href={`/dashboard/events/${id}/edit`}
+              className="flex items-center gap-2 rounded-full border border-base-500/30 px-5 py-2.5 text-sm font-medium text-base-400 hover:bg-base-500/10 transition-colors"
             >
-              {/* Banner */}
-              <div className="h-48 bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
-                {event.bannerUrl ? (
-                  <img
-                    src={event.bannerUrl}
-                    alt={event.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                    No Image
-                  </div>
-                )}
-                <div className="absolute top-3 right-3 px-2 py-1 bg-black/60 text-white text-xs rounded-full">
-                  {event.status}
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
-                  {event.title}
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
-                  {event.description}
-                </p>
-
-                <div className="mt-3 space-y-1.5">
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                    <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
-                    {event.venue}
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                    <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
-                    {new Date(event.startsAt).toLocaleDateString()}
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                    <Users className="h-4 w-4 mr-2 flex-shrink-0" />
-                    {event._count?.applications || 0} registered
-                  </div>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
-                    {event.category}
-                  </span>
-                  <span className="text-sm text-blue-600 dark:text-blue-400 font-medium group-hover:underline">
-                    View Event →
-                  </span>
-                </div>
-              </div>
+              <Edit size={16} /> Edit Event
             </Link>
-          ))}
+          )}
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-6 text-sm text-fg-muted">
+          <span className="flex items-center gap-2"><Calendar size={16} /> {new Date(event.startsAt).toLocaleString()}</span>
+          <span className="flex items-center gap-2"><MapPin size={16} /> {event.venue}</span>
+          <span className="flex items-center gap-2"><Users size={16} /> {seatsLeft} seats left of {event.capacity}</span>
+          <span className="flex items-center gap-2"><ShieldCheck size={16} /> {event.visibility.replace("_", " ")}</span>
+        </div>
+
+        <p className="mt-8 max-w-2xl leading-relaxed text-fg-muted">{event.description}</p>
+
+        {event.speakers?.length > 0 && (
+          <div className="mt-10">
+            <h2 className="font-display font-semibold">Speakers</h2>
+            <div className="mt-4 flex flex-wrap gap-4">
+              {event.speakers.map((s: any) => (
+                <div key={s.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                  <p className="font-medium">{s.name}</p>
+                  <p className="text-xs text-fg-muted">{s.title}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-10 flex flex-wrap gap-4">
+          <button
+            onClick={() => setShowApplyModal(true)}
+            disabled={applying}
+            className="rounded-full bg-base-500 px-8 py-3 font-medium text-white shadow-glow transition-transform hover:scale-[1.02] disabled:opacity-60"
+          >
+            {applying ? "Applying…" : seatsLeft > 0 ? "Apply to attend" : "Join waitlist"}
+          </button>
+
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 rounded-full border border-white/20 px-6 py-3 font-medium text-fg-muted hover:bg-white/5 transition-colors"
+          >
+            {copied ? <Check size={18} className="text-green-400" /> : <Share2 size={18} />}
+            {copied ? "Copied!" : "Share"}
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Apply Modal */}
+      {showApplyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative w-full max-w-md rounded-2xl bg-white p-6 dark:bg-gray-900 shadow-2xl"
+          >
+            <button
+              onClick={() => {
+                setShowApplyModal(false);
+                setReason("");
+              }}
+              className="absolute right-4 top-4 rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <X size={20} className="text-gray-600 dark:text-gray-300" />
+            </button>
+
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Apply to attend</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              Tell the organizer why you want to attend this event. (Optional)
+            </p>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Why do you want to attend? <span className="text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="I'm interested in this event because... (optional)"
+                rows={4}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-base-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+              />
+              <div className="mt-1 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>{reason.length}/500 characters</span>
+                <span className="text-gray-400">
+                  {reason.length === 0 ? "Optional" : `${reason.length} characters`}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowApplyModal(false);
+                  setReason("");
+                }}
+                className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApplySubmit}
+                disabled={submitting}
+                className="flex-1 rounded-xl bg-base-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-base-600 disabled:opacity-60 transition-colors"
+              >
+                {submitting ? "Submitting..." : "Submit application"}
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>
