@@ -11,7 +11,7 @@ interface StatsCardProps {
   };
 }
 
-export function StatsCard({ stats }: StatsCardProps) {
+export default function StatsCard({ stats }: StatsCardProps) {
   const items = [
     { label: "Events Attended", value: stats.events, icon: Calendar },
     { label: "NFTs Minted", value: stats.nfts, icon: Award },
