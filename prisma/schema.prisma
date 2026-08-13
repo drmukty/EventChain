@@ -1,6 +1,4 @@
 // EventChain — Prisma schema
-// Swap `provider` datasource url via DATABASE_URL env var only (Supabase Postgres in production).
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,10 +7,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// ────────────────────────────────
-// ENUMS
-// ────────────────────────────────
 
 enum GlobalRole {
   ADMIN
@@ -62,20 +56,18 @@ enum NotificationType {
   WAITLIST_PROMOTED
 }
 
-// ────────────────────────────────
-// USERS & AUTH
-// ────────────────────────────────
-
 model User {
   id            String     @id @default(cuid())
   name          String?
   email         String     @unique
   emailVerified DateTime?
-  passwordHash  String? // null when user signed up via Google
+  passwordHash  String?
   image         String?
   role          GlobalRole @default(ATTENDEE)
   walletAddress String?    @unique
   bio           String?
+  avatarUrl     String?
+  telegramId    String?    @unique
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -128,10 +120,6 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
-
-// ────────────────────────────────
-// EVENTS
-// ────────────────────────────────
 
 model Event {
   id                   String          @id @default(cuid())
@@ -206,10 +194,6 @@ model AgendaItem {
   speaker   String?
 }
 
-// ────────────────────────────────
-// TEAM MANAGEMENT (per-event roles)
-// ────────────────────────────────
-
 model TeamMember {
   id        String   @id @default(cuid())
   eventId   String
@@ -221,10 +205,6 @@ model TeamMember {
 
   @@unique([eventId, userId])
 }
-
-// ────────────────────────────────
-// APPLICATIONS & WAITLIST
-// ────────────────────────────────
 
 model Application {
   id              String            @id @default(cuid())
@@ -240,7 +220,7 @@ model Application {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  reason          String?           // ✅ NEW: Why do they want to attend?
+  reason          String?
 
   qrCode   QRCode?
   checkIn  CheckIn?
@@ -248,10 +228,6 @@ model Application {
   @@unique([eventId, userId])
   @@index([eventId, status])
 }
-
-// ────────────────────────────────
-// QR CODES
-// ────────────────────────────────
 
 model QRCode {
   id            String      @id @default(cuid())
@@ -266,10 +242,6 @@ model QRCode {
 
   @@index([token])
 }
-
-// ────────────────────────────────
-// CHECK-IN
-// ────────────────────────────────
 
 model CheckIn {
   id            String      @id @default(cuid())
@@ -287,10 +259,6 @@ model CheckIn {
 
   @@index([eventId])
 }
-
-// ────────────────────────────────
-// NFTS (on-chain POAPs) + off-chain badges fallback
-// ────────────────────────────────
 
 model NFT {
   id           String   @id @default(cuid())
@@ -311,10 +279,6 @@ model NFT {
   @@index([userId])
 }
 
-// ────────────────────────────────
-// CERTIFICATES
-// ────────────────────────────────
-
 model Certificate {
   id            String   @id @default(cuid())
   certificateId String   @unique
@@ -332,10 +296,6 @@ model Certificate {
   checkIn CheckIn? @relation(fields: [checkInId], references: [id], onDelete: SetNull)
 }
 
-// ────────────────────────────────
-// NOTIFICATIONS
-// ────────────────────────────────
-
 model Notification {
   id        String            @id @default(cuid())
   userId    String
@@ -349,10 +309,6 @@ model Notification {
 
   @@index([userId, readAt])
 }
-
-// ────────────────────────────────
-// PASSWORD RESET TOKENS
-// ────────────────────────────────
 
 model PasswordResetToken {
   id        String   @id @default(cuid())
