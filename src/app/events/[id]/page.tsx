@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { MapPin, Calendar, Users, ShieldCheck, Share2, Check, X, Edit } from "lucide-react";
+import { MapPin, Calendar, Users, ShieldCheck, Share2, Check, X, Edit, Copy, Key, Loader2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -15,6 +15,10 @@ export default function EventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [application, setApplication] = useState<any>(null);
 
   // Apply modal state
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -22,17 +26,31 @@ export default function EventDetailPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/events/${id}`)
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) {
-          setError(data.error ?? "Could not load this event");
-          return;
-        }
-        setEvent(data.event);
-      })
-      .catch(() => setError("Could not load this event"));
+    fetchEventDetails();
   }, [id]);
+
+  async function fetchEventDetails() {
+    try {
+      const res = await fetch(`/api/events/${id}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not load this event");
+        return;
+      }
+      setEvent(data.event);
+
+      // If user is logged in, fetch their application status
+      if (session?.user) {
+        const appRes = await fetch(`/api/me/applications?eventId=${id}`);
+        const appData = await appRes.json();
+        if (appData.applications && appData.applications.length > 0) {
+          setApplication(appData.applications[0]);
+        }
+      }
+    } catch {
+      setError("Could not load this event");
+    }
+  }
 
   async function handleApplySubmit() {
     setSubmitting(true);
@@ -50,6 +68,8 @@ export default function EventDetailPage() {
       );
       setShowApplyModal(false);
       setReason("");
+      // Refresh application status
+      fetchEventDetails();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -99,6 +119,33 @@ export default function EventDetailPage() {
     }
   }
 
+  async function fetchManualToken() {
+    if (!application) return;
+    setTokenLoading(true);
+    try {
+      const res = await fetch(`/api/events/${id}/manual-token/${application.id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setToken(data.token);
+        toast.success("Token retrieved!");
+      } else {
+        toast.error(data.error || "Failed to get token");
+      }
+    } catch (error) {
+      toast.error("Error fetching token");
+    } finally {
+      setTokenLoading(false);
+    }
+  }
+
+  function copyToken() {
+    if (!token) return;
+    navigator.clipboard.writeText(token);
+    setTokenCopied(true);
+    toast.success("Token copied! 📋");
+    setTimeout(() => setTokenCopied(false), 3000);
+  }
+
   if (error) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-24 text-center">
@@ -109,8 +156,9 @@ export default function EventDetailPage() {
 
   if (!event) return <div className="mx-auto max-w-4xl px-6 py-24 text-fg-muted">Loading event…</div>;
 
-  const seatsLeft = Math.max(0, event.capacity - event._count.applications);
+  const seatsLeft = Math.max(0, event.capacity - event._count?.applications || 0);
   const isOrganizer = session?.user && (session.user as any).id === event.organizerId;
+  const isApproved = application?.status === "APPROVED";
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
@@ -165,13 +213,76 @@ export default function EventDetailPage() {
           </div>
         )}
 
+        {/* User's Application Status & Token */}
+        {session?.user && application && (
+          <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-6">
+            <h3 className="text-lg font-semibold">Your Registration</h3>
+            <div className="mt-2 flex items-center gap-3">
+              <span className="text-sm text-fg-muted">Status:</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                application.status === "APPROVED" 
+                  ? "bg-green-500/20 text-green-400"
+                  : application.status === "REJECTED"
+                  ? "bg-red-500/20 text-red-400"
+                  : application.status === "PENDING"
+                  ? "bg-yellow-500/20 text-yellow-400"
+                  : "bg-gray-500/20 text-gray-400"
+              }`}>
+                {application.status}
+              </span>
+            </div>
+
+            {/* Show token section only if approved */}
+            {isApproved && (
+              <div className="mt-4 border-t border-white/10 pt-4">
+                <p className="text-sm font-medium text-fg-muted">Check-in Token</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  {token ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2">
+                      <Key size={16} className="text-blue-400" />
+                      <span className="font-mono text-lg tracking-wider">{token}</span>
+                      <button
+                        onClick={copyToken}
+                        className="ml-2 rounded p-1 hover:bg-white/10 transition-colors"
+                        title="Copy token"
+                      >
+                        {tokenCopied ? (
+                          <Check size={18} className="text-green-400" />
+                        ) : (
+                          <Copy size={18} className="text-blue-400" />
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={fetchManualToken}
+                      disabled={tokenLoading}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
+                    >
+                      {tokenLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Key size={16} />
+                      )}
+                      {tokenLoading ? "Loading..." : "Get Token"}
+                    </button>
+                  )}
+                  <span className="text-xs text-fg-muted/60">
+                    Use this token for manual check-in if QR scanning fails
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mt-10 flex flex-wrap gap-4">
           <button
             onClick={() => setShowApplyModal(true)}
-            disabled={applying}
-            className="rounded-full bg-base-500 px-8 py-3 font-medium text-white shadow-glow transition-transform hover:scale-[1.02] disabled:opacity-60"
+            disabled={applying || isApproved}
+            className="rounded-full bg-base-500 px-8 py-3 font-medium text-white shadow-glow transition-transform hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
           >
-            {applying ? "Applying…" : seatsLeft > 0 ? "Apply to attend" : "Join waitlist"}
+            {isApproved ? "✅ Approved" : applying ? "Applying…" : seatsLeft > 0 ? "Apply to attend" : "Join waitlist"}
           </button>
 
           <button
