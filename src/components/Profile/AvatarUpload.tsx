@@ -8,8 +8,8 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { User, Mail, Lock, Save, Loader2, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
-import { AvatarUpload } from "@/components/Profile/AvatarUpload";
-import { StatsCard } from "@/components/Profile/StatsCard";
+import AvatarUpload from "@/components/Profile/AvatarUpload";
+import StatsCard from "@/components/Profile/StatsCard";
 
 export default function ProfilePage() {
   const { data: session, update } = useSession();
