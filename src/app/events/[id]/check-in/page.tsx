@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Loader2, QrCode, Key, Camera, RefreshCw } from 'lucide-react';
+import { Loader2, QrCode, Key, Camera, RefreshCw, Settings } from 'lucide-react';
 import jsQR from 'jsqr';
 import toast from 'react-hot-toast';
 import ManualVerification from '@/components/ManualVerification';
@@ -32,7 +32,6 @@ export default function EventCheckInPage() {
       router.push('/login');
       return;
     }
-
     if (status === 'authenticated' && eventId) {
       fetch(`/api/events/${eventId}`)
         .then((r) => r.json())
@@ -40,9 +39,7 @@ export default function EventCheckInPage() {
           setEventTitle(data.event?.title || 'Event');
           setLoading(false);
         })
-        .catch(() => {
-          setLoading(false);
-        });
+        .catch(() => setLoading(false));
     }
   }, [status, router, eventId]);
 
@@ -52,8 +49,15 @@ export default function EventCheckInPage() {
     } else {
       stopCamera();
     }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && activeTab === 'qr') {
+        checkAndStartCamera();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       stopCamera();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [activeTab, eventId]);
 
@@ -66,9 +70,8 @@ export default function EventCheckInPage() {
         permissionStatus.onchange = () => {
           const newState = permissionStatus.state as 'prompt' | 'granted' | 'denied';
           setCameraState(newState);
-          if (newState === 'granted') {
-            startCamera();
-          } else if (newState === 'denied') {
+          if (newState === 'granted') startCamera();
+          else if (newState === 'denied') {
             stopCamera();
             setCameraError('Camera access was denied. Please allow camera access in your browser settings.');
           }
@@ -149,7 +152,6 @@ export default function EventCheckInPage() {
   const scanLoop = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-
     if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -157,28 +159,23 @@ export default function EventCheckInPage() {
       ctx.drawImage(video, 0, 0);
       const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const qr = jsQR(image.data, image.width, image.height);
-
       if (qr && qr.data !== lastPayloadRef.current) {
         lastPayloadRef.current = qr.data;
         handleQRScan(qr.data);
       }
     }
-
     animationRef.current = requestAnimationFrame(scanLoop);
   };
 
   const handleQRScan = async (payload: string) => {
     setScanStatus({ type: null, message: '' });
-
     try {
       const res = await fetch('/api/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload, eventId })
       });
-
       const data = await res.json();
-
       if (res.ok) {
         setScanStatus({
           type: 'success',
@@ -199,7 +196,6 @@ export default function EventCheckInPage() {
       });
       toast.error('Network error');
     }
-
     setTimeout(() => {
       lastPayloadRef.current = null;
       if (scanStatus.type !== 'error') {
@@ -208,16 +204,28 @@ export default function EventCheckInPage() {
     }, 3000);
   };
 
+  const openSiteSettings = () => {
+    const ua = navigator.userAgent.toLowerCase();
+    let url = '';
+    if (ua.includes('chrome')) {
+      url = 'chrome://settings/content/camera';
+    } else if (ua.includes('firefox')) {
+      url = 'about:preferences#privacy';
+    } else if (ua.includes('safari') && !ua.includes('chrome')) {
+      toast.info('Open Safari Settings > Websites > Camera and allow for this site.');
+      return;
+    } else {
+      toast.info('Please allow camera access in your browser settings.');
+      return;
+    }
+    if (url) window.open(url, '_blank');
+  };
+
   const renderCameraContent = () => {
     if (cameraState === 'granted') {
       return (
         <>
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-          />
+          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
           <canvas ref={canvasRef} className="hidden" />
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute inset-8 border-2 border-blue-500/60 rounded-lg"></div>
@@ -259,21 +267,30 @@ export default function EventCheckInPage() {
             <p className="text-sm text-red-400 font-medium">
               {cameraError || 'Camera access denied.'}
             </p>
-            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 space-y-1 max-w-xs">
               <p>To fix:</p>
               <ol className="list-decimal list-inside text-left">
-                <li>Click the lock icon 🔒 in the address bar</li>
-                <li>Go to <strong>Site settings</strong> → <strong>Camera</strong></li>
-                <li>Change to <strong>Allow</strong> and reload the page</li>
+                <li>Click <strong>Open Site Settings</strong> below</li>
+                <li>Change <strong>Camera</strong> to <strong>Allow</strong></li>
+                <li>Return to this page – it will auto‑start</li>
               </ol>
             </div>
-            <button
-              onClick={() => startCamera()}
-              className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <RefreshCw size={16} />
-              Retry
-            </button>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button
+                onClick={() => startCamera()}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <RefreshCw size={16} />
+                Retry
+              </button>
+              <button
+                onClick={openSiteSettings}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                <Settings size={16} />
+                Open Site Settings
+              </button>
+            </div>
           </>
         )}
         {cameraState === 'unsupported' && (
@@ -296,17 +313,13 @@ export default function EventCheckInPage() {
     );
   }
 
-  if (!session?.user) {
-    return null;
-  }
+  if (!session?.user) return null;
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Check-In</h1>
-        <p className="text-fg-muted mb-2">
-          {eventTitle}
-        </p>
+        <p className="text-fg-muted mb-2">{eventTitle}</p>
         <p className="text-sm text-fg-muted mb-6">
           Scan QR codes or enter manual tokens to check in attendees
         </p>
@@ -353,7 +366,6 @@ export default function EventCheckInPage() {
                 <p className="text-sm text-fg-muted text-center">
                   Scan the attendee's QR code to check them in
                 </p>
-                
                 <div className="max-w-md mx-auto">
                   <div className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-black/5">
                     <div className="aspect-square relative">
@@ -361,7 +373,6 @@ export default function EventCheckInPage() {
                     </div>
                   </div>
                 </div>
-
                 {scanStatus.type && (
                   <div className={`p-3 rounded-lg text-center ${
                     scanStatus.type === 'success'
@@ -371,7 +382,6 @@ export default function EventCheckInPage() {
                     {scanStatus.message}
                   </div>
                 )}
-
                 <p className="text-xs text-fg-muted text-center">
                   Scanning continuously — no need to tap anything.
                 </p>
