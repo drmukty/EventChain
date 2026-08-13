@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Loader2, QrCode, Key } from 'lucide-react';
+import { Loader2, QrCode, Key, Camera, RefreshCw } from 'lucide-react';
 import jsQR from 'jsqr';
 import toast from 'react-hot-toast';
 import ManualVerification from '@/components/ManualVerification';
@@ -20,6 +20,8 @@ export default function CheckInHomePage() {
   const [activeTab, setActiveTab] = useState<'qr' | 'manual'>('qr');
   const [loading, setLoading] = useState(true);
   const [scanStatus, setScanStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+  const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const router = useRouter();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -50,18 +52,28 @@ export default function CheckInHomePage() {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    if (activeTab === 'qr' && selectedEventId) {
-      startCamera();
-    } else {
-      stopCamera();
+  // Check camera permission status
+  const checkCameraPermission = async () => {
+    if (!navigator.permissions || !navigator.permissions.query) {
+      setCameraPermission('unsupported');
+      return;
     }
-    return () => {
-      stopCamera();
-    };
-  }, [activeTab, selectedEventId]);
+    try {
+      const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      setCameraPermission(result.state as 'prompt' | 'granted' | 'denied');
+      result.onchange = () => {
+        setCameraPermission(result.state as 'prompt' | 'granted' | 'denied');
+        if (result.state === 'granted') {
+          startCamera();
+        }
+      };
+    } catch {
+      setCameraPermission('unsupported');
+    }
+  };
 
   const startCamera = async () => {
+    setCameraError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
@@ -71,10 +83,19 @@ export default function CheckInHomePage() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      setCameraPermission('granted');
       scanLoop();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Camera error:', err);
-      toast.error('Could not access camera. Please allow camera permissions.');
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraPermission('denied');
+        setCameraError('Camera access was denied. Please allow camera access in your browser settings and try again.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setCameraError('No camera found on this device.');
+      } else {
+        setCameraError('Failed to start camera: ' + err.message);
+      }
+      toast.error(cameraError || 'Could not access camera');
     }
   };
 
@@ -158,6 +179,26 @@ export default function CheckInHomePage() {
       }
     }, 3000);
   };
+
+  useEffect(() => {
+    if (activeTab === 'qr' && selectedEventId) {
+      checkCameraPermission();
+      if (cameraPermission === 'granted') {
+        startCamera();
+      }
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [activeTab, selectedEventId]);
+
+  useEffect(() => {
+    if (cameraPermission === 'granted') {
+      startCamera();
+    }
+  }, [cameraPermission]);
 
   if (status === 'loading' || loading) {
     return (
@@ -253,20 +294,66 @@ export default function CheckInHomePage() {
                 <div className="max-w-md mx-auto">
                   <div className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-black/5">
                     <div className="aspect-square relative">
-                      <video
-                        ref={videoRef}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                      />
-                      <canvas ref={canvasRef} className="hidden" />
-                      <div className="absolute inset-0 pointer-events-none">
-                        <div className="absolute inset-8 border-2 border-blue-500/60 rounded-lg"></div>
-                        <div className="absolute top-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
-                        <div className="absolute left-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
-                        <div className="absolute right-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
-                      </div>
+                      {/* Camera feed or placeholder */}
+                      {cameraPermission === 'granted' ? (
+                        <>
+                          <video
+                            ref={videoRef}
+                            className="w-full h-full object-cover"
+                            muted
+                            playsInline
+                          />
+                          <canvas ref={canvasRef} className="hidden" />
+                          <div className="absolute inset-0 pointer-events-none">
+                            <div className="absolute inset-8 border-2 border-blue-500/60 rounded-lg"></div>
+                            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
+                            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-blue-500/60 animate-pulse"></div>
+                            <div className="absolute left-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
+                            <div className="absolute right-8 top-1/2 -translate-y-1/2 w-8 h-0.5 bg-blue-500/60 animate-pulse"></div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full bg-gray-900/10 dark:bg-gray-800/50 p-4">
+                          {cameraPermission === 'prompt' ? (
+                            <>
+                              <Camera className="w-12 h-12 text-gray-400 mb-4" />
+                              <p className="text-sm text-center text-gray-600 dark:text-gray-300">
+                                Camera permission is required.
+                              </p>
+                              <button
+                                onClick={() => startCamera()}
+                                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                              >
+                                Allow Camera
+                              </button>
+                            </>
+                          ) : cameraPermission === 'denied' ? (
+                            <>
+                              <Camera className="w-12 h-12 text-red-400 mb-4" />
+                              <p className="text-sm text-center text-red-400">
+                                {cameraError || 'Camera access denied.'}
+                              </p>
+                              <button
+                                onClick={() => {
+                                  // Request again (browser will show permission prompt again)
+                                  startCamera();
+                                }}
+                                className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                              >
+                                <RefreshCw size={16} />
+                                Retry
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="w-12 h-12 text-gray-400 mb-4" />
+                              <p className="text-sm text-center text-gray-600 dark:text-gray-300">
+                                Camera not available.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
