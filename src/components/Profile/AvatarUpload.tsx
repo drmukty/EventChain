@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Camera, Loader2, X } from "lucide-react";
 
