@@ -11,6 +11,11 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = (session.user as any).id;
+  if (!userId) {
+    return NextResponse.json({ error: "User ID not found" }, { status: 401 });
+  }
+
   const application = await prisma.application.findUnique({
     where: { id: params.id },
     include: { event: true, user: true },
@@ -18,7 +23,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
 
   const membership = await prisma.teamMember.findUnique({
-    where: { eventId_userId: { eventId: application.eventId, userId: (session.user as any).id } },
+    where: { eventId_userId: { eventId: application.eventId, userId } },
   });
   const isAdmin = (session.user as any).role === "ADMIN";
   
@@ -35,7 +40,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       where: { id: application.id },
       data: {
         status: "APPROVED",
-        reviewedById: (session.user as any).id,
+        reviewedById: userId,
         reviewedAt: new Date(),
       },
     });
