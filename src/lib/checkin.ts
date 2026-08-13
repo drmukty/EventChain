@@ -19,7 +19,8 @@ export async function markAttendanceAndMint(
     },
   });
 
-  const nft = await client.nft.create({
+  // Use nFT (Prisma's case-sensitive naming) - matches your schema
+  const nft = await client.nFT.create({
     data: {
       eventId,
       userId,
