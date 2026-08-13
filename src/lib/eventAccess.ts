@@ -3,21 +3,12 @@ import type { Event } from "@prisma/client";
 
 type AccessResult = { allowed: true } | { allowed: false; reason: string; status: number };
 
-/**
- * Central place that decides whether a given (possibly anonymous) user may
- * view or apply to an event, based on its visibility setting. Both the event
- * detail route and the apply route call this so the rule can never drift
- * between "can see it" and "can apply to it".
- */
 export async function checkEventAccess(
   event: Event,
   user: { id: string; email: string; role: string } | null
 ): Promise<AccessResult> {
   if (event.visibility === "PUBLIC") return { allowed: true };
-
-  // Every other visibility requires being signed in.
   if (!user) return { allowed: false, reason: "Sign in to view this event", status: 401 };
-
   if (user.role === "ADMIN") return { allowed: true };
 
   const membership = await prisma.teamMember.findUnique({
@@ -33,12 +24,28 @@ export async function checkEventAccess(
     return { allowed: true };
   }
 
-  // TOKEN_GATED / NFT_HOLDER events – skip token check for now
   if (event.visibility === "TOKEN_GATED" || event.visibility === "NFT_HOLDER") {
-    // Token gating is not implemented in the simple contract
-    // Allow access by default (check will be handled elsewhere if needed)
     return { allowed: true };
   }
 
   return { allowed: false, reason: "You don't have access to this event", status: 403 };
+}
+
+export async function hasEventAccess(
+  userId: string,
+  eventId: string,
+  allowedRoles: string[] = ["OWNER", "ADMIN", "VOLUNTEER", "QR_SCANNER"]
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (user?.role === "ADMIN") return true;
+
+  const membership = await prisma.teamMember.findUnique({
+    where: { eventId_userId: { eventId, userId } },
+  });
+
+  if (!membership) return false;
+  return allowedRoles.includes(membership.role);
 }
