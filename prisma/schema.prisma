@@ -155,6 +155,7 @@ model Event {
   checkIns     CheckIn[]
   nfts         NFT[]
   certificates Certificate[]
+  manualTokens ManualToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -224,6 +225,7 @@ model Application {
 
   qrCode   QRCode?
   checkIn  CheckIn?
+  manualToken ManualToken?
 
   @@unique([eventId, userId])
   @@index([eventId, status])
