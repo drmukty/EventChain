@@ -21,39 +21,47 @@ export async function GET(
   const eventId = params.id;
   const applicationId = params.applicationId;
 
-  const membership = await prisma.teamMember.findUnique({
-    where: { eventId_userId: { eventId, userId } },
-  });
-  const isAdmin = (session.user as any).role === "ADMIN";
-  
-  if (!isAdmin && !(membership && ["OWNER", "ADMIN"].includes(membership.role))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
+  // Fetch the application with its event
   const application = await prisma.application.findUnique({
     where: { id: applicationId, eventId },
-    include: { event: true },
+    include: { event: true, user: true },
   });
-  
+
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 
+  // Authorization: allow if user is application owner OR has team access
+  const isOwner = application.userId === userId;
+
+  // Check team membership (for organizers/admins)
+  const membership = await prisma.teamMember.findUnique({
+    where: { eventId_userId: { eventId, userId } },
+  });
+  const isAdmin = (session.user as any).role === "ADMIN";
+  const isOrganizer = membership?.role === "OWNER" || membership?.role === "ADMIN";
+
+  if (!isOwner && !isAdmin && !isOrganizer) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Only approved applications get a token
   if (application.status !== "APPROVED") {
     return NextResponse.json({ error: "Application is not approved" }, { status: 400 });
   }
 
+  // Generate or regenerate the token
   const result = await prisma.$transaction(async (tx) => {
     let tokenRecord = await tx.manualToken.findUnique({
       where: { applicationId }
     });
 
     let plainToken: string;
-    
+
     if (!tokenRecord || tokenRecord.usedAt || tokenRecord.expiresAt < new Date()) {
       plainToken = generateManualToken();
       const tokenHash = await hashToken(plainToken);
-      
+
       tokenRecord = await tx.manualToken.upsert({
         where: { applicationId },
         update: {
@@ -69,9 +77,10 @@ export async function GET(
         },
       });
     } else {
+      // Regenerate (can't retrieve old plaintext)
       plainToken = generateManualToken();
       const tokenHash = await hashToken(plainToken);
-      
+
       tokenRecord = await tx.manualToken.update({
         where: { id: tokenRecord.id },
         data: {
