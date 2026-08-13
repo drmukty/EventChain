@@ -36,8 +36,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get the user ID from session
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: "User ID not found" }, { status: 401 });
+    }
+
     const membership = await prisma.teamMember.findUnique({
-      where: { eventId_userId: { eventId, userId: session.user.id } },
+      where: { eventId_userId: { eventId, userId } },
     });
     const isAdmin = (session.user as any).role === "ADMIN";
     
@@ -91,7 +97,7 @@ export async function POST(request: NextRequest) {
       application.id,
       application.eventId,
       application.userId,
-      session.user.id
+      userId
     );
 
     return NextResponse.json({
