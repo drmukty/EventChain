@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { QrCode, X, FileDown } from "lucide-react";
+import { QrCode, X, FileDown, Key, Copy, Check } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -18,6 +18,9 @@ export default function MyEventsPage() {
   const { data: session } = useSession();
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tokenLoading, setTokenLoading] = useState<Record<string, boolean>>({});
+  const [tokenDisplay, setTokenDisplay] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState<Record<string, boolean>>({});
 
   function load() {
     fetch("/api/me/applications")
@@ -59,6 +62,33 @@ export default function MyEventsPage() {
     }
   }
 
+  const fetchManualToken = async (applicationId: string, eventId: string) => {
+    setTokenLoading(prev => ({ ...prev, [applicationId]: true }));
+    try {
+      const res = await fetch(`/api/events/${eventId}/manual-token/${applicationId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setTokenDisplay(prev => ({ ...prev, [applicationId]: data.token }));
+        toast.success('Token ready!');
+      } else {
+        toast.error(data.error || 'Failed to get token');
+      }
+    } catch (error) {
+      toast.error('Error fetching token');
+    } finally {
+      setTokenLoading(prev => ({ ...prev, [applicationId]: false }));
+    }
+  };
+
+  const copyToClipboard = (token: string, applicationId: string) => {
+    navigator.clipboard.writeText(token);
+    setCopied(prev => ({ ...prev, [applicationId]: true }));
+    toast.success('Token copied!');
+    setTimeout(() => {
+      setCopied(prev => ({ ...prev, [applicationId]: false }));
+    }, 2000);
+  };
+
   const isCheckedIn = (app: any) => {
     return app.checkIn && app.checkIn.checkedInAt !== null;
   };
@@ -83,6 +113,7 @@ export default function MyEventsPage() {
         {applications.map((app, i) => {
           const checkedIn = isCheckedIn(app);
           const canDownloadCertificate = checkedIn;
+          const isApproved = app.status === "APPROVED";
 
           return (
             <motion.div
@@ -111,7 +142,43 @@ export default function MyEventsPage() {
                   </a>
                 )}
 
-                {/* ✅ Certificate button - shows after check-in, not after event ends */}
+                {/* ✅ Manual Token Button - only for APPROVED events */}
+                {isApproved && (
+                  <div className="flex items-center gap-1.5">
+                    {tokenDisplay[app.id] ? (
+                      <div className="flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-2">
+                        <Key size={14} className="text-green-400" />
+                        <span className="font-mono text-xs tracking-wider">{tokenDisplay[app.id]}</span>
+                        <button
+                          onClick={() => copyToClipboard(tokenDisplay[app.id], app.id)}
+                          className="hover:bg-white/10 rounded p-1 transition-colors"
+                          title="Copy token"
+                        >
+                          {copied[app.id] ? (
+                            <Check size={14} className="text-green-400" />
+                          ) : (
+                            <Copy size={14} className="text-fg-muted hover:text-white" />
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fetchManualToken(app.id, app.eventId)}
+                        disabled={tokenLoading[app.id]}
+                        className="flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-full border border-green-500/30 px-4 py-2 text-xs font-medium text-green-400 hover:bg-green-500/10 disabled:opacity-50"
+                      >
+                        {tokenLoading[app.id] ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-t-transparent" />
+                        ) : (
+                          <Key size={14} />
+                        )}
+                        Get Token
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* ✅ Certificate button - shows after check-in */}
                 {canDownloadCertificate && (
                   <button
                     onClick={() => downloadCertificate(app.eventId)}
