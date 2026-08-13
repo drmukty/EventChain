@@ -212,10 +212,16 @@ export default function EventCheckInPage() {
     } else if (ua.includes('firefox')) {
       url = 'about:preferences#privacy';
     } else if (ua.includes('safari') && !ua.includes('chrome')) {
-      toast.info('Open Safari Settings > Websites > Camera and allow for this site.');
+      toast('Open Safari Settings > Websites > Camera and allow for this site.', {
+        icon: '🔧',
+        duration: 5000,
+      });
       return;
     } else {
-      toast.info('Please allow camera access in your browser settings.');
+      toast('Please allow camera access in your browser settings.', {
+        icon: '🔧',
+        duration: 5000,
+      });
       return;
     }
     if (url) window.open(url, '_blank');
