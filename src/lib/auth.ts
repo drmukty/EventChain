@@ -47,6 +47,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           image: user.image,
           role: user.role,
+          avatarUrl: user.avatarUrl,
+          telegramId: user.telegramId,
         } as any;
       },
     }),
@@ -56,17 +58,24 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = (user as any).id;
         token.role = (user as any).role;
+        token.avatarUrl = (user as any).avatarUrl;
+        token.telegramId = (user as any).telegramId;
       }
-      // Keep role and walletAddress fresh in case an admin changes the role,
-      // or the user links/changes their wallet mid-session — without this,
-      // session.user.walletAddress would stay stale (or undefined) until
-      // the user logs out and back in, which broke the "already connected"
-      // wallet indicator and any client code gating on it.
       if (token.id) {
-        const dbUser = await prisma.user.findUnique({ where: { id: token.id as string } });
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: {
+            role: true,
+            walletAddress: true,
+            avatarUrl: true,
+            telegramId: true,
+          },
+        });
         if (dbUser) {
           token.role = dbUser.role;
           token.walletAddress = dbUser.walletAddress;
+          token.avatarUrl = dbUser.avatarUrl;
+          token.telegramId = dbUser.telegramId;
         }
       }
       return token;
@@ -76,6 +85,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).walletAddress = token.walletAddress ?? null;
+        (session.user as any).avatarUrl = token.avatarUrl ?? null;
+        (session.user as any).telegramId = token.telegramId ?? null;
       }
       return session;
     },
