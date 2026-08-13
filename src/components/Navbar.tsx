@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Hexagon, Menu, X } from "lucide-react";
+import { Hexagon, Menu, X, User, Settings, LogOut, UserCircle } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { NotificationBell } from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import Image from "next/image";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { data: session } = useSession();
   const [isStaffAnywhere, setIsStaffAnywhere] = useState(false);
 
@@ -23,6 +25,9 @@ export function Navbar() {
       .then((d) => setIsStaffAnywhere(!!d.isStaffAnywhere))
       .catch(() => setIsStaffAnywhere(false));
   }, [session]);
+
+  const user = session?.user as any;
+  const avatarUrl = user?.avatarUrl || user?.image || null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 dark:border-white/5 bg-white/80 dark:bg-ink-950/70 backdrop-blur-xl">
@@ -88,7 +93,58 @@ export function Navbar() {
           )}
 
           {session ? (
-            <button onClick={() => signOut()} className="hidden md:block rounded-full bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10">Sign out</button>
+            <div className="relative flex items-center gap-3">
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-white/10 px-2 py-1 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              >
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="Avatar"
+                    width={32}
+                    height={32}
+                    className="rounded-full h-8 w-8 object-cover"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-base-500/20 flex items-center justify-center">
+                    <User size={16} className="text-base-500" />
+                  </div>
+                )}
+                <span className="text-sm font-medium hidden sm:block">{user?.name || user?.email?.split('@')[0]}</span>
+              </button>
+
+              {profileDropdownOpen && (
+                <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-ink-950/95 p-2 shadow-2xl backdrop-blur-xl">
+                  <div className="flex flex-col gap-1">
+                    <div className="px-3 py-2 border-b border-gray-100 dark:border-white/5">
+                      <p className="text-sm font-medium">{user?.name || 'User'}</p>
+                      <p className="text-xs text-fg-muted truncate">{user?.email}</p>
+                    </div>
+                    <Link
+                      href="/profile"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <UserCircle size={16} /> Profile
+                    </Link>
+                    <Link
+                      href="/profile?tab=settings"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <Settings size={16} /> Settings
+                    </Link>
+                    <button
+                      onClick={() => { setProfileDropdownOpen(false); signOut(); }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left text-red-500"
+                    >
+                      <LogOut size={16} /> Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <Link href="/login" className="hidden md:block rounded-full bg-base-500 px-4 py-2 text-sm font-medium text-white shadow-glow hover:bg-base-600 transition-colors">Sign in</Link>
           )}
