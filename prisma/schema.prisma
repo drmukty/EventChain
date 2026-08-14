@@ -81,6 +81,7 @@ model User {
   nfts            NFT[]
   certificates    Certificate[]
   notifications   Notification[]
+  auditLogs       AuditLog[]
 
   @@index([email])
 }
@@ -312,6 +313,22 @@ model ManualToken {
 
   @@index([eventId])
   @@index([applicationId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ip         String?
+  timestamp  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
 }
 
 model Notification {
