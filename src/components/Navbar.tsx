@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Hexagon, Menu, X, User, Settings, LogOut, UserCircle } from "lucide-react";
+import { Hexagon, Menu, X, User, Settings, LogOut, UserCircle, Wallet } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { NotificationBell } from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ui/ThemeToggle";
@@ -127,6 +127,13 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                     >
                       <UserCircle size={16} /> Profile
+                    </Link>
+                    <Link
+                      href="/profile/wallets"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <Wallet size={16} /> Wallet
                     </Link>
                     <Link
                       href="/profile?tab=settings"
