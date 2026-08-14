@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
   Loader2, Wallet, Copy, Check, Plus, Key, ExternalLink, Star, Send, QrCode, History, Clock, 
-  CheckCircle2, XCircle, ArrowUpRight, ChevronDown, RefreshCw 
+  CheckCircle2, XCircle, ChevronDown 
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { truncateAddress, NETWORKS, NetworkId, DEFAULT_NETWORK } from "@/lib/wallet";
@@ -41,7 +41,7 @@ interface Event {
 }
 
 interface Attendee {
-  id: string;
+  id: string;        // applicationId
   name: string | null;
   email: string;
   walletAddress: string;
@@ -54,7 +54,8 @@ export default function WalletsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [wallets, setWallets] = useState<WalletData[]>([]);
-  const [selectedNetwork, setSelectedNetwork] = useState<Record<string, NetworkId>>({});
+  const [activeWalletId, setActiveWalletId] = useState<string>("");
+  const [selectedNetwork, setSelectedNetwork] = useState<NetworkId>(DEFAULT_NETWORK);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -94,7 +95,6 @@ export default function WalletsPage() {
   // History state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyWalletId, setHistoryWalletId] = useState("");
 
   // ─── Effects ─────────────────────────────────────────────────────────────
 
@@ -131,10 +131,10 @@ export default function WalletsPage() {
           })
         );
         setWallets(walletsWithBalances);
-        // Init selected network per wallet
-        const netMap: Record<string, NetworkId> = {};
-        walletsWithBalances.forEach(w => { netMap[w.id] = DEFAULT_NETWORK; });
-        setSelectedNetwork(netMap);
+        // Set active wallet to default or first
+        const defaultWallet = walletsWithBalances.find(w => w.isDefault);
+        setActiveWalletId(defaultWallet?.id || walletsWithBalances[0]?.id || "");
+        setSelectedNetwork(DEFAULT_NETWORK);
       }
     } catch (error) {
       toast.error("Failed to load wallets");
@@ -158,11 +158,12 @@ export default function WalletsPage() {
       const res = await fetch(`/api/events/${eventId}/applications`);
       const data = await res.json();
       const apps = data.applications || [];
+      // Only approved and have wallet address
       const attendees: Attendee[] = apps
         .filter((a: any) => a.status === "APPROVED" && a.user.walletAddress)
         .map((a: any) => ({
           id: a.id,
-          name: a.user.name,
+          name: a.user.name || a.user.email,
           email: a.user.email,
           walletAddress: a.user.walletAddress,
         }));
@@ -178,7 +179,6 @@ export default function WalletsPage() {
       const res = await fetch(`/api/user/wallets/${walletId}/transactions`);
       const data = await res.json();
       setTransactions(data.transactions || []);
-      setHistoryWalletId(walletId);
       setShowHistoryModal(true);
     } catch {
       toast.error("Failed to load transaction history");
@@ -212,8 +212,8 @@ export default function WalletsPage() {
     }
   };
 
-  const changeNetwork = (walletId: string, networkId: NetworkId) => {
-    setSelectedNetwork(prev => ({ ...prev, [walletId]: networkId }));
+  const changeNetwork = (networkId: NetworkId) => {
+    setSelectedNetwork(networkId);
   };
 
   // ─── Create / Import ──────────────────────────────────────────────────────
@@ -308,10 +308,14 @@ export default function WalletsPage() {
 
   // ─── Send Flow ──────────────────────────────────────────────────────────────
 
-  const openSend = (walletId: string, address: string) => {
-    setSendWalletId(walletId);
-    setSendWalletAddress(address);
-    setSendNetwork(selectedNetwork[walletId] || DEFAULT_NETWORK);
+  const openSend = () => {
+    if (!activeWalletId) return;
+    const wallet = wallets.find(w => w.id === activeWalletId);
+    if (!wallet) return;
+
+    setSendWalletId(wallet.id);
+    setSendWalletAddress(wallet.address);
+    setSendNetwork(selectedNetwork);
     setSendStep("details");
     setSendAmount("");
     setSelectedEventId("");
@@ -432,6 +436,10 @@ export default function WalletsPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
+  const activeWallet = wallets.find(w => w.id === activeWalletId);
+  const balance = activeWallet?.balances?.[selectedNetwork] || "0.0";
+  const networkInfo = NETWORKS[selectedNetwork];
+
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -466,7 +474,6 @@ export default function WalletsPage() {
         </div>
       </div>
 
-      {/* Wallet List */}
       {wallets.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/30 rounded-2xl">
           <Wallet className="h-16 w-16 mx-auto text-gray-400 mb-4" />
@@ -484,100 +491,107 @@ export default function WalletsPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          {wallets.map((wallet) => {
-            const currentNetwork = selectedNetwork[wallet.id] || DEFAULT_NETWORK;
-            const balance = wallet.balances?.[currentNetwork] || "0.0";
-            const networkInfo = NETWORKS[currentNetwork];
+        <div className="space-y-6">
+          {/* Wallet Selector Dropdown */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className="text-sm font-medium text-fg-muted">Select Wallet:</label>
+            <select
+              value={activeWalletId}
+              onChange={(e) => setActiveWalletId(e.target.value)}
+              className="rounded-lg border p-2 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 font-mono text-sm flex-1 min-w-[200px]"
+            >
+              {wallets.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {truncateAddress(w.address)} {w.isDefault ? '⭐' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            return (
-              <div key={wallet.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-                {/* Wallet Header */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-fg-muted">Wallet Address</p>
-                      {wallet.isDefault && (
-                        <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-blue-400" /> Default
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="font-mono text-lg break-all">{wallet.address}</p>
-                      <button
-                        onClick={() => copyToClipboard(wallet.address)}
-                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                      >
-                        {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                      </button>
-                    </div>
+          {/* Active Wallet Card */}
+          {activeWallet && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-fg-muted">Wallet Address</p>
+                    {activeWallet.isDefault && (
+                      <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-blue-400" /> Default
+                      </span>
+                    )}
                   </div>
-                  {!wallet.isDefault && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="font-mono text-lg break-all">{activeWallet.address}</p>
                     <button
-                      onClick={() => setDefaultWallet(wallet.id)}
-                      className="text-sm text-blue-500 hover:underline"
+                      onClick={() => copyToClipboard(activeWallet.address)}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                     >
-                      Set as Default
+                      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </button>
-                  )}
+                  </div>
                 </div>
-
-                {/* Network Switcher */}
-                <div className="mt-4 flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-3">
-                  {Object.values(NETWORKS).map((net) => (
-                    <button
-                      key={net.id}
-                      onClick={() => changeNetwork(wallet.id, net.id)}
-                      className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                        currentNetwork === net.id
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {net.name}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Balance */}
-                <div className="mt-3">
-                  <p className="text-xs text-fg-muted">Balance on {networkInfo?.name}</p>
-                  <p className="text-2xl font-bold">
-                    {parseFloat(balance).toFixed(4)} {networkInfo?.symbol}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-4 flex flex-wrap gap-3">
+                {!activeWallet.isDefault && (
                   <button
-                    onClick={() => openSend(wallet.id, wallet.address)}
-                    className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                    onClick={() => setDefaultWallet(activeWallet.id)}
+                    className="text-sm text-blue-500 hover:underline"
                   >
-                    <Send size={16} />
-                    Send
+                    Set as Default
                   </button>
-                  <button
-                    onClick={() => {
-                      setReceiveAddress(wallet.address);
-                      setShowReceiveModal(true);
-                    }}
-                    className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-                  >
-                    <QrCode size={16} />
-                    Receive
-                  </button>
-                  <button
-                    onClick={() => fetchHistory(wallet.id)}
-                    className="flex items-center gap-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm"
-                  >
-                    <History size={16} />
-                    History
-                  </button>
-                </div>
+                )}
               </div>
-            );
-          })}
+
+              {/* Network Selector Dropdown */}
+              <div className="mt-4 flex items-center gap-3">
+                <label className="text-sm font-medium text-fg-muted">Network:</label>
+                <select
+                  value={selectedNetwork}
+                  onChange={(e) => changeNetwork(e.target.value as NetworkId)}
+                  className="rounded-lg border p-2 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-sm"
+                >
+                  {Object.values(NETWORKS).map((net) => (
+                    <option key={net.id} value={net.id}>{net.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Balance */}
+              <div className="mt-3">
+                <p className="text-xs text-fg-muted">Balance on {networkInfo?.name}</p>
+                <p className="text-2xl font-bold">
+                  {parseFloat(balance).toFixed(4)} {networkInfo?.symbol}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={openSend}
+                  className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                >
+                  <Send size={16} />
+                  Send
+                </button>
+                <button
+                  onClick={() => {
+                    setReceiveAddress(activeWallet.address);
+                    setShowReceiveModal(true);
+                  }}
+                  className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                >
+                  <QrCode size={16} />
+                  Receive
+                </button>
+                <button
+                  onClick={() => fetchHistory(activeWallet.id)}
+                  className="flex items-center gap-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm"
+                >
+                  <History size={16} />
+                  History
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -860,13 +874,16 @@ export default function WalletsPage() {
                     className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
                     disabled={!selectedEventId || attendees.length === 0}
                   >
-                    <option value="">{attendees.length === 0 ? "No approved attendees with wallet" : "Select attendee..."}</option>
+                    <option value="">
+                      {attendees.length === 0 ? "No approved attendees with wallet" : "Select attendee..."}
+                    </option>
                     {attendees.map((att) => (
                       <option key={att.id} value={att.id}>
-                        {att.name || att.email} ({truncateAddress(att.walletAddress)})
+                        {att.name || att.email}
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs text-fg-muted mt-1">Attendee's wallet address is hidden for privacy.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Amount (ETH)</label>
