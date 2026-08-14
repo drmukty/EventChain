@@ -16,7 +16,7 @@ export async function GET() {
 
   const wallets = await prisma.wallet.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
   });
 
   return NextResponse.json({ wallets });
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
   const userId = (session.user as any).id;
   const body = await request.json();
-  const { masterPassword, importPrivateKey } = body;
+  const { masterPassword, importPrivateKey, name } = body;
 
   if (!masterPassword || masterPassword.length < 6) {
     return NextResponse.json(
@@ -42,10 +42,10 @@ export async function POST(request: NextRequest) {
 
   let address: string;
   let privateKey: string;
+  let walletName = name || '';
 
   try {
     if (importPrivateKey) {
-      // Import existing wallet
       if (!isValidPrivateKey(importPrivateKey)) {
         return NextResponse.json(
           { error: 'Invalid private key' },
@@ -55,26 +55,31 @@ export async function POST(request: NextRequest) {
       privateKey = importPrivateKey.trim();
       address = importWallet(privateKey);
     } else {
-      // Create new wallet
       const wallet = createWallet();
       address = wallet.address;
       privateKey = wallet.privateKey;
     }
 
-    // Encrypt private key with master password
+    // Count existing wallets for naming
+    const walletCount = await prisma.wallet.count({ where: { userId } });
+
+    // If no name provided, generate one
+    if (!walletName) {
+      walletName = `Wallet ${walletCount + 1}`;
+    }
+
     const encryptedKey = encryptPrivateKey(privateKey, masterPassword);
 
-    // Save wallet to database
     const wallet = await prisma.wallet.create({
       data: {
         userId,
         address,
         encryptedKey,
-        isDefault: false,
+        name: walletName,
+        isDefault: walletCount === 0,
       },
     });
 
-    // Audit log
     await createAuditLog({
       userId,
       action: 'WALLET_CREATED',
@@ -83,24 +88,15 @@ export async function POST(request: NextRequest) {
       metadata: { address, imported: !!importPrivateKey },
     });
 
-    // If this is the first wallet, make it default
-    const walletCount = await prisma.wallet.count({ where: { userId } });
-    if (walletCount === 1) {
-      await prisma.wallet.update({
-        where: { id: wallet.id },
-        data: { isDefault: true },
-      });
-    }
-
     return NextResponse.json({
       success: true,
       wallet: {
         id: wallet.id,
         address: wallet.address,
+        name: wallet.name,
         isDefault: wallet.isDefault,
         createdAt: wallet.createdAt,
       },
-      // Show private key only for new wallet creation
       privateKey: importPrivateKey ? undefined : privateKey,
     });
   } catch (error: any) {
