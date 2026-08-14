@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { Users, CheckCircle2, Clock, XCircle, Hexagon, UserX, Plus } from "lucide-react";
+import { 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
+} from "recharts";
+import { 
+  Users, CheckCircle2, Clock, XCircle, Hexagon, UserX, Plus, FileText 
+} from "lucide-react";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -68,11 +72,19 @@ export default function DashboardPage() {
           <h1 className="font-display text-3xl font-semibold">Organizer dashboard</h1>
           <p className="mt-2 text-fg-muted">Live numbers across every event you manage.</p>
         </div>
-        <Link href="/dashboard/events/new" className="no-underline">
-          <Button variant="primary" className="inline-flex items-center gap-2 px-4 py-2">
-            <Plus size={16} /> New event
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          {/* Reports Button - NEW */}
+          <Link href="/dashboard/reports" className="no-underline">
+            <Button variant="secondary" className="inline-flex items-center gap-2 px-4 py-2">
+              <FileText size={16} /> Reports
+            </Button>
+          </Link>
+          <Link href="/dashboard/events/new" className="no-underline">
+            <Button variant="primary" className="inline-flex items-center gap-2 px-4 py-2">
+              <Plus size={16} /> New event
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {loading ? (
@@ -112,7 +124,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Manage Events CTA */}
+          {/* Manage Events & Reports CTA */}
           <div className="mt-10">
             <Card className="rounded-2xl p-8 shadow-glass text-center">
               <h2 className="font-display text-2xl font-semibold">Manage Your Events</h2>
@@ -120,10 +132,16 @@ export default function DashboardPage() {
                 View your events, review applications, assign volunteers,
                 manage your team, and monitor live QR check-ins.
               </p>
-              <div className="mt-6">
+              <div className="mt-6 flex flex-wrap justify-center gap-4">
                 <Link href="/dashboard/events">
                   <Button variant="primary" className="px-6 py-3">
                     Manage My Events
+                  </Button>
+                </Link>
+                <Link href="/dashboard/reports">
+                  <Button variant="secondary" className="px-6 py-3">
+                    <FileText className="h-4 w-4 mr-2 inline" />
+                    View Reports
                   </Button>
                 </Link>
               </div>
