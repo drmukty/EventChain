@@ -22,7 +22,7 @@ export async function GET() {
   return NextResponse.json({ wallets });
 }
 
-// POST - Create a new wallet
+// POST - Create a new wallet (or import)
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -36,18 +36,6 @@ export async function POST(request: NextRequest) {
   if (!masterPassword || masterPassword.length < 6) {
     return NextResponse.json(
       { error: 'Master password is required (minimum 6 characters)' },
-      { status: 400 }
-    );
-  }
-
-  // Check if user already has a wallet
-  const existingWallet = await prisma.wallet.findFirst({
-    where: { userId },
-  });
-
-  if (existingWallet) {
-    return NextResponse.json(
-      { error: 'You already have a wallet. Only one wallet is supported per user.' },
       { status: 400 }
     );
   }
@@ -82,7 +70,7 @@ export async function POST(request: NextRequest) {
         userId,
         address,
         encryptedKey,
-        isDefault: true,
+        isDefault: false,
       },
     });
 
@@ -95,7 +83,15 @@ export async function POST(request: NextRequest) {
       metadata: { address, imported: !!importPrivateKey },
     });
 
-    // Return wallet without private key
+    // If this is the first wallet, make it default
+    const walletCount = await prisma.wallet.count({ where: { userId } });
+    if (walletCount === 1) {
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { isDefault: true },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       wallet: {
@@ -104,7 +100,7 @@ export async function POST(request: NextRequest) {
         isDefault: wallet.isDefault,
         createdAt: wallet.createdAt,
       },
-      // Show private key only once (for new wallet creation)
+      // Show private key only for new wallet creation
       privateKey: importPrivateKey ? undefined : privateKey,
     });
   } catch (error: any) {
