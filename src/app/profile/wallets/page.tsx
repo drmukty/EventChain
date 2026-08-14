@@ -3,16 +3,23 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Loader2, Wallet, Copy, Check, Plus, Key, ExternalLink } from "lucide-react";
+import { Loader2, Wallet, Copy, Check, Plus, Key, ExternalLink, Star } from "lucide-react";
 import toast from "react-hot-toast";
 import { truncateAddress, NETWORKS, getWalletBalances } from "@/lib/wallet";
+
+interface WalletData {
+  id: string;
+  address: string;
+  isDefault: boolean;
+  createdAt: string;
+  balances?: Record<string, string>;
+}
 
 export default function WalletsPage() {
   const { data: session, status, update } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [wallet, setWallet] = useState<any>(null);
-  const [balances, setBalances] = useState<Record<string, string>>({});
+  const [wallets, setWallets] = useState<WalletData[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [masterPassword, setMasterPassword] = useState("");
@@ -20,7 +27,6 @@ export default function WalletsPage() {
   const [importPrivateKey, setImportPrivateKey] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newPrivateKey, setNewPrivateKey] = useState("");
-  const [newAddress, setNewAddress] = useState("");
   const [copied, setCopied] = useState(false);
   const [hasSavedKey, setHasSavedKey] = useState(false);
   const [step, setStep] = useState<"password" | "showKey">("password");
@@ -31,46 +37,46 @@ export default function WalletsPage() {
       return;
     }
     if (status === "authenticated") {
-      fetchWallet();
+      fetchWallets();
     }
   }, [status]);
 
-  const fetchWallet = async () => {
+  const fetchWallets = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/user/wallets");
       const data = await res.json();
-      if (data.wallets && data.wallets.length > 0) {
-        setWallet(data.wallets[0]);
-        fetchBalances(data.wallets[0].address);
-      } else {
-        setWallet(null);
-        setBalances({});
+      if (data.wallets) {
+        // Fetch balances for each wallet
+        const walletsWithBalances = await Promise.all(
+          data.wallets.map(async (w: any) => {
+            try {
+              const balRes = await fetch(`/api/user/wallets/${w.id}/balance`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              });
+              const balData = await balRes.json();
+              return { ...w, balances: balData.balances || {} };
+            } catch {
+              return { ...w, balances: {} };
+            }
+          })
+        );
+        setWallets(walletsWithBalances);
       }
     } catch (error) {
-      toast.error("Failed to load wallet");
+      toast.error("Failed to load wallets");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchBalances = async (address: string) => {
-    if (!address) return;
-    try {
-      const res = await fetch(`/api/user/wallets/${wallet?.id || "temp"}/balance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (data.balances) {
-        setBalances(data.balances);
-      }
-    } catch (error) {
-      console.error("Balance fetch error:", error);
-    }
+  const startCreate = () => {
+    setStep("password");
+    setShowCreateModal(true);
   };
 
-  const handleCreateWallet = async () => {
+  const proceedToKey = async () => {
     if (!masterPassword || masterPassword.length < 6) {
       toast.error("Master password must be at least 6 characters");
       return;
@@ -79,11 +85,6 @@ export default function WalletsPage() {
       toast.error("Passwords do not match");
       return;
     }
-    if (!hasSavedKey) {
-      toast.error("Please confirm you have saved your private key");
-      return;
-    }
-
     setIsCreating(true);
     try {
       const res = await fetch("/api/user/wallets", {
@@ -91,29 +92,34 @@ export default function WalletsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masterPassword }),
       });
-
       const data = await res.json();
-      if (res.ok) {
-        toast.success("Wallet created successfully!");
-        await update();
-        // Reset and close modal
-        setShowCreateModal(false);
-        setMasterPassword("");
-        setConfirmPassword("");
-        setNewPrivateKey("");
-        setNewAddress("");
-        setHasSavedKey(false);
-        setStep("password");
-        // Refresh wallet data
-        await fetchWallet();
+      if (data.privateKey) {
+        setNewPrivateKey(data.privateKey);
+        setStep("showKey");
       } else {
-        toast.error(data.error || "Failed to create wallet");
+        toast.error(data.error || "Failed to generate wallet");
       }
-    } catch (error) {
-      toast.error("Failed to create wallet");
+    } catch {
+      toast.error("Failed to generate wallet");
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleCreateWallet = async () => {
+    if (!hasSavedKey) {
+      toast.error("Please confirm you have saved your private key");
+      return;
+    }
+    // The wallet was already created in proceedToKey, but we need to refresh the list.
+    await fetchWallets();
+    toast.success("Wallet created successfully!");
+    setShowCreateModal(false);
+    setMasterPassword("");
+    setConfirmPassword("");
+    setNewPrivateKey("");
+    setHasSavedKey(false);
+    setStep("password");
   };
 
   const handleImportWallet = async () => {
@@ -136,20 +142,18 @@ export default function WalletsPage() {
           importPrivateKey: importPrivateKey.trim(),
         }),
       });
-
       const data = await res.json();
       if (res.ok) {
         toast.success("Wallet imported successfully!");
-        await update();
+        await fetchWallets();
         setShowImportModal(false);
         setMasterPassword("");
         setConfirmPassword("");
         setImportPrivateKey("");
-        await fetchWallet();
       } else {
         toast.error(data.error || "Failed to import wallet");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to import wallet");
     } finally {
       setIsCreating(false);
@@ -163,41 +167,20 @@ export default function WalletsPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Start create flow – show password form
-  const startCreate = () => {
-    setStep("password");
-    setShowCreateModal(true);
-  };
-
-  // After password entered, show private key
-  const proceedToKey = () => {
-    if (!masterPassword || masterPassword.length < 6) {
-      toast.error("Master password must be at least 6 characters");
-      return;
+  const setDefaultWallet = async (walletId: string) => {
+    try {
+      const res = await fetch(`/api/user/wallets/${walletId}/default`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        toast.success("Default wallet updated");
+        await fetchWallets();
+      } else {
+        toast.error("Failed to update default wallet");
+      }
+    } catch {
+      toast.error("Failed to update default wallet");
     }
-    if (masterPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    // Generate key and show it
-    setIsCreating(true);
-    fetch("/api/user/wallets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ masterPassword }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.privateKey) {
-          setNewPrivateKey(data.privateKey);
-          setNewAddress(data.wallet.address);
-          setStep("showKey");
-        } else {
-          toast.error("Failed to generate wallet");
-        }
-      })
-      .catch(() => toast.error("Failed to generate wallet"))
-      .finally(() => setIsCreating(false));
   };
 
   if (loading) {
@@ -213,32 +196,30 @@ export default function WalletsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">Wallets</h1>
-          <p className="text-fg-muted">Manage your crypto wallet for event payments</p>
+          <p className="text-fg-muted">Manage your crypto wallets for event payments</p>
         </div>
-        {!wallet && (
-          <div className="flex gap-2">
-            <button
-              onClick={startCreate}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
-            >
-              <Plus size={18} />
-              Create Wallet
-            </button>
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
-            >
-              <Key size={18} />
-              Import
-            </button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <button
+            onClick={startCreate}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Create Wallet
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+          >
+            <Key size={18} />
+            Import
+          </button>
+        </div>
       </div>
 
-      {!wallet ? (
+      {wallets.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/30 rounded-2xl">
           <Wallet className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No Wallet Found</h2>
+          <h2 className="text-xl font-semibold mb-2">No Wallets Found</h2>
           <p className="text-fg-muted mb-6">
             Create a new wallet or import an existing one to start sending payments.
           </p>
@@ -258,52 +239,65 @@ export default function WalletsPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Wallet Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-fg-muted">Wallet Address</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="font-mono text-lg break-all">{wallet.address}</p>
-                  <button
-                    onClick={() => copyToClipboard(wallet.address)}
-                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                  >
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <span className="px-3 py-1 bg-green-500/10 text-green-400 text-sm rounded-full border border-green-500/20">
-                Active
-              </span>
-            </div>
-
-            {/* Balances */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(balances).map(([network, balance]) => {
-                const networkInfo = NETWORKS[network as keyof typeof NETWORKS];
-                if (!networkInfo) return null;
-                return (
-                  <div key={network} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                    <p className="text-sm text-fg-muted">{networkInfo.name}</p>
-                    <p className="text-2xl font-bold">{parseFloat(balance).toFixed(4)} {networkInfo.symbol}</p>
+        <div className="space-y-4">
+          {wallets.map((wallet) => (
+            <div key={wallet.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-fg-muted">Wallet Address</p>
+                    {wallet.isDefault && (
+                      <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-blue-400" /> Default
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="font-mono text-lg break-all">{wallet.address}</p>
+                    <button
+                      onClick={() => copyToClipboard(wallet.address)}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                    >
+                      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                {!wallet.isDefault && (
+                  <button
+                    onClick={() => setDefaultWallet(wallet.id)}
+                    className="text-sm text-blue-500 hover:underline"
+                  >
+                    Set as Default
+                  </button>
+                )}
+              </div>
 
-            <div className="mt-4 flex gap-3">
-              <a
-                href={`${NETWORKS.baseSepolia.blockExplorer}/address/${wallet.address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-500 hover:underline flex items-center gap-1"
-              >
-                View on Explorer <ExternalLink size={14} />
-              </a>
+              {/* Balances */}
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {wallet.balances && Object.entries(wallet.balances).map(([network, balance]) => {
+                  const networkInfo = NETWORKS[network as keyof typeof NETWORKS];
+                  if (!networkInfo) return null;
+                  return (
+                    <div key={network} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+                      <p className="text-xs text-fg-muted">{networkInfo.name}</p>
+                      <p className="text-xl font-bold">{parseFloat(balance).toFixed(4)} {networkInfo.symbol}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 flex gap-3">
+                <a
+                  href={`${NETWORKS.baseSepolia.blockExplorer}/address/${wallet.address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline flex items-center gap-1"
+                >
+                  View on Explorer <ExternalLink size={12} />
+                </a>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
@@ -352,7 +346,6 @@ export default function WalletsPage() {
                       setMasterPassword("");
                       setConfirmPassword("");
                       setNewPrivateKey("");
-                      setNewAddress("");
                       setHasSavedKey(false);
                       setStep("password");
                     }}
@@ -363,7 +356,6 @@ export default function WalletsPage() {
                 </div>
               </div>
             ) : (
-              // Show private key step
               <div className="space-y-4">
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
                   <p className="text-sm text-yellow-400 font-medium">⚠️ Save Your Private Key</p>
@@ -373,11 +365,9 @@ export default function WalletsPage() {
                   </p>
                 </div>
                 <div className="bg-gray-900 rounded-xl p-4">
-                  <p className="text-xs text-fg-muted mb-2">Wallet Address</p>
-                  <p className="font-mono text-sm break-all text-white">{newAddress}</p>
-                  <p className="text-xs text-fg-muted mt-3 mb-1">Private Key</p>
+                  <p className="text-xs text-fg-muted mb-2">Private Key</p>
                   <div className="flex items-center gap-2">
-                    <p className="font-mono text-xs break-all text-yellow-400">{newPrivateKey}</p>
+                    <p className="font-mono text-sm break-all text-yellow-400">{newPrivateKey}</p>
                     <button
                       onClick={() => copyToClipboard(newPrivateKey)}
                       className="p-1 hover:bg-gray-700 rounded transition-colors flex-shrink-0"
@@ -408,7 +398,6 @@ export default function WalletsPage() {
                       setMasterPassword("");
                       setConfirmPassword("");
                       setNewPrivateKey("");
-                      setNewAddress("");
                       setHasSavedKey(false);
                       setStep("password");
                     }}
