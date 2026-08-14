@@ -23,10 +23,17 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Get user's wallet
-  const wallet = await prisma.wallet.findFirst({
-    where: { userId },
+  // Get user's default wallet, or first wallet if none set as default
+  let wallet = await prisma.wallet.findFirst({
+    where: { userId, isDefault: true },
   });
+
+  if (!wallet) {
+    wallet = await prisma.wallet.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
 
   if (!wallet) {
     return NextResponse.json({
