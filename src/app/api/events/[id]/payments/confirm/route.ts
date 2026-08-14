@@ -75,4 +75,25 @@ export async function POST(
 
   // Process payment
   try {
-    const result = await processPayment(paymentId, privateKey
+    const result = await processPayment(paymentId, privateKey);
+
+    if (result.success) {
+      return NextResponse.json({
+        success: true,
+        txHash: result.txHash,
+        message: 'Payment sent successfully!',
+      });
+    } else {
+      return NextResponse.json(
+        { error: result.error || 'Payment failed' },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('Payment confirmation error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to process payment' },
+      { status: 500 }
+    );
+  }
+}
