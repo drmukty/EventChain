@@ -44,7 +44,7 @@ interface Attendee {
   id: string;        // applicationId
   name: string | null;
   email: string;
-  walletAddress: string;
+  walletAddress: string | null;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -87,6 +87,7 @@ export default function WalletsPage() {
   const [sendPaymentId, setSendPaymentId] = useState("");
   const [sending, setSending] = useState(false);
   const [sendTxHash, setSendTxHash] = useState("");
+  const [loadingAttendees, setLoadingAttendees] = useState(false);
 
   // Create/Import state
   const [masterPassword, setMasterPassword] = useState("");
@@ -161,22 +162,27 @@ export default function WalletsPage() {
 
   const fetchAttendees = async (eventId: string) => {
     if (!eventId) return;
+    setLoadingAttendees(true);
     try {
       const res = await fetch(`/api/events/${eventId}/applications`);
       const data = await res.json();
       const apps = data.applications || [];
-      // Only approved and have wallet address
+      // Get all approved attendees, keep wallet address even if null
       const attendees: Attendee[] = apps
-        .filter((a: any) => a.status === "APPROVED" && a.user.walletAddress)
+        .filter((a: any) => a.status === "APPROVED")
         .map((a: any) => ({
           id: a.id,
           name: a.user.name || a.user.email,
           email: a.user.email,
-          walletAddress: a.user.walletAddress,
+          walletAddress: a.user.walletAddress || null,
         }));
       setAttendees(attendees);
+      // Reset selected attendee
+      setSelectedAttendeeId("");
     } catch {
       toast.error("Failed to load attendees");
+    } finally {
+      setLoadingAttendees(false);
     }
   };
 
@@ -1000,22 +1006,44 @@ export default function WalletsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Select Attendee</label>
-                  <select
-                    value={selectedAttendeeId}
-                    onChange={(e) => setSelectedAttendeeId(e.target.value)}
-                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
-                    disabled={!selectedEventId || attendees.length === 0}
-                  >
-                    <option value="">
-                      {attendees.length === 0 ? "No approved attendees with wallet" : "Select attendee..."}
-                    </option>
-                    {attendees.map((att) => (
-                      <option key={att.id} value={att.id}>
-                        {att.name || att.email} ({truncateAddress(att.walletAddress)})
+                  <div className="relative">
+                    <select
+                      value={selectedAttendeeId}
+                      onChange={(e) => setSelectedAttendeeId(e.target.value)}
+                      className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
+                      disabled={!selectedEventId || loadingAttendees || attendees.length === 0}
+                    >
+                      <option value="">
+                        {loadingAttendees
+                          ? "Loading attendees..."
+                          : attendees.length === 0
+                          ? "No approved attendees found"
+                          : "Select attendee..."}
                       </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-fg-muted mt-1">Attendee's wallet address is shown for verification.</p>
+                      {attendees.map((att) => (
+                        <option
+                          key={att.id}
+                          value={att.id}
+                          disabled={!att.walletAddress}
+                        >
+                          {att.name || att.email}
+                          {att.walletAddress
+                            ? ` (${truncateAddress(att.walletAddress)})`
+                            : " (No wallet connected)"}
+                        </option>
+                      ))}
+                    </select>
+                    {loadingAttendees && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-fg-muted mt-1">
+                    {attendees.length > 0
+                      ? `Showing ${attendees.length} approved attendees. Those without a wallet are disabled.`
+                      : "No approved attendees with a connected wallet."}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Amount (ETH)</label>
@@ -1067,7 +1095,7 @@ export default function WalletsPage() {
                       </div>
                       <div className="font-mono text-xs text-fg-muted">
                         {attendees.find(a => a.id === selectedAttendeeId)?.walletAddress && 
-                          truncateAddress(attendees.find(a => a.id === selectedAttendeeId)!.walletAddress)}
+                          truncateAddress(attendees.find(a => a.id === selectedAttendeeId)!.walletAddress || "")}
                       </div>
                     </div>
                   </div>
