@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
   Loader2, Wallet, Copy, Check, Plus, Key, ExternalLink, Star, Send, QrCode, History, Clock, 
-  CheckCircle2, XCircle, ChevronDown, Settings, Pencil, Trash2, Search, User as UserIcon 
+  CheckCircle2, XCircle, ChevronDown, Settings, Pencil, Trash2, Search, User as UserIcon, Calendar 
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { truncateAddress, NETWORKS, NetworkId, DEFAULT_NETWORK } from "@/lib/wallet";
@@ -35,12 +35,16 @@ interface Transaction {
   explorerUrl: string | null;
 }
 
-interface UserRecipient {
+interface Event {
   id: string;
-  name: string;
+  title: string;
+}
+
+interface Attendee {
+  id: string;        // applicationId
+  name: string | null;
   email: string;
   walletAddress: string;
-  walletId: string;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -73,16 +77,16 @@ export default function WalletsPage() {
   const [sendWalletId, setSendWalletId] = useState("");
   const [sendWalletAddress, setSendWalletAddress] = useState("");
   const [sendNetwork, setSendNetwork] = useState<NetworkId>(DEFAULT_NETWORK);
-  const [recipients, setRecipients] = useState<UserRecipient[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRecipient, setSelectedRecipient] = useState<UserRecipient | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [selectedAttendeeId, setSelectedAttendeeId] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendMasterPassword, setSendMasterPassword] = useState("");
   const [sendStep, setSendStep] = useState<"select" | "confirm">("select");
   const [sendPaymentId, setSendPaymentId] = useState("");
   const [sending, setSending] = useState(false);
   const [sendTxHash, setSendTxHash] = useState("");
-  const [showRecipientDropdown, setShowRecipientDropdown] = useState(false);
 
   // Create/Import state
   const [masterPassword, setMasterPassword] = useState("");
@@ -107,7 +111,7 @@ export default function WalletsPage() {
     }
     if (status === "authenticated") {
       fetchWallets();
-      fetchRecipients();
+      fetchEvents();
     }
   }, [status]);
 
@@ -145,13 +149,34 @@ export default function WalletsPage() {
     }
   };
 
-  const fetchRecipients = async () => {
+  const fetchEvents = async () => {
     try {
-      const res = await fetch("/api/users");
+      const res = await fetch("/api/events?mine=true");
       const data = await res.json();
-      setRecipients(data.users || []);
+      setEvents(data.events || []);
     } catch {
-      console.error("Failed to load recipients");
+      toast.error("Failed to load events");
+    }
+  };
+
+  const fetchAttendees = async (eventId: string) => {
+    if (!eventId) return;
+    try {
+      const res = await fetch(`/api/events/${eventId}/applications`);
+      const data = await res.json();
+      const apps = data.applications || [];
+      // Only approved and have wallet address
+      const attendees: Attendee[] = apps
+        .filter((a: any) => a.status === "APPROVED" && a.user.walletAddress)
+        .map((a: any) => ({
+          id: a.id,
+          name: a.user.name || a.user.email,
+          email: a.user.email,
+          walletAddress: a.user.walletAddress,
+        }));
+      setAttendees(attendees);
+    } catch {
+      toast.error("Failed to load attendees");
     }
   };
 
@@ -360,29 +385,28 @@ export default function WalletsPage() {
     setSendNetwork(selectedNetwork);
     setSendStep("select");
     setSendAmount("");
-    setSelectedRecipient(null);
-    setSearchQuery("");
+    setSelectedEventId("");
+    setSelectedAttendeeId("");
+    setAttendees([]);
     setSendMasterPassword("");
     setSendPaymentId("");
     setSendTxHash("");
-    setShowRecipientDropdown(false);
     setShowSendModal(true);
   };
 
-  const filteredRecipients = recipients.filter(r =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleSelectRecipient = (recipient: UserRecipient) => {
-    setSelectedRecipient(recipient);
-    setShowRecipientDropdown(false);
-    setSearchQuery("");
+  const handleEventChange = (eventId: string) => {
+    setSelectedEventId(eventId);
+    setSelectedAttendeeId("");
+    if (eventId) {
+      fetchAttendees(eventId);
+    } else {
+      setAttendees([]);
+    }
   };
 
   const handleSendDetailsSubmit = async () => {
-    if (!selectedRecipient || !sendAmount) {
-      toast.error("Please select a recipient and enter amount");
+    if (!selectedEventId || !selectedAttendeeId || !sendAmount) {
+      toast.error("Please fill all fields");
       return;
     }
     if (isNaN(parseFloat(sendAmount)) || parseFloat(sendAmount) <= 0) {
@@ -392,12 +416,11 @@ export default function WalletsPage() {
 
     setSending(true);
     try {
-      const res = await fetch(`/api/events/0/payments`, {
+      const res = await fetch(`/api/events/${selectedEventId}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recipientId: selectedRecipient.id,
-          recipientWallet: selectedRecipient.walletAddress,
+          applicationId: selectedAttendeeId,
           amount: sendAmount,
           networkId: sendNetwork,
         }),
@@ -425,7 +448,7 @@ export default function WalletsPage() {
 
     setSending(true);
     try {
-      const res = await fetch(`/api/events/0/payments/confirm`, {
+      const res = await fetch(`/api/events/${selectedEventId}/payments/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -443,7 +466,6 @@ export default function WalletsPage() {
           setSendStep("select");
           setSendMasterPassword("");
           setSendTxHash("");
-          setSelectedRecipient(null);
         }, 2000);
       } else {
         toast.error(data.error || "Payment confirmation failed");
@@ -907,7 +929,6 @@ export default function WalletsPage() {
                   setSendStep("select");
                   setSendMasterPassword("");
                   setSendTxHash("");
-                  setSelectedRecipient(null);
                 }}
                 className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
@@ -964,55 +985,38 @@ export default function WalletsPage() {
                     ))}
                   </select>
                 </div>
-                <div className="relative">
-                  <label className="block text-sm font-medium mb-1">Search Recipient</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setShowRecipientDropdown(true);
-                        if (e.target.value === "") setSelectedRecipient(null);
-                      }}
-                      onFocus={() => setShowRecipientDropdown(true)}
-                      placeholder="Search by name or email..."
-                      className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700 pr-10"
-                    />
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  </div>
-
-                  {showRecipientDropdown && (
-                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto shadow-lg">
-                      {filteredRecipients.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-fg-muted">No users found</div>
-                      ) : (
-                        filteredRecipients.map((r) => (
-                          <button
-                            key={r.id}
-                            onClick={() => handleSelectRecipient(r)}
-                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
-                          >
-                            <UserIcon size={16} className="text-gray-400 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate">{r.name}</div>
-                              <div className="text-xs text-fg-muted truncate">{r.walletAddress}</div>
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Select Event</label>
+                  <select
+                    value={selectedEventId}
+                    onChange={(e) => handleEventChange(e.target.value)}
+                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
+                  >
+                    <option value="">Select an event...</option>
+                    {events.map((ev) => (
+                      <option key={ev.id} value={ev.id}>{ev.title}</option>
+                    ))}
+                  </select>
                 </div>
-
-                {selectedRecipient && (
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                    <p className="text-sm font-medium">Selected Recipient</p>
-                    <p className="text-sm font-semibold">{selectedRecipient.name}</p>
-                    <p className="text-xs font-mono text-fg-muted">{selectedRecipient.walletAddress}</p>
-                  </div>
-                )}
-
+                <div>
+                  <label className="block text-sm font-medium mb-1">Select Attendee</label>
+                  <select
+                    value={selectedAttendeeId}
+                    onChange={(e) => setSelectedAttendeeId(e.target.value)}
+                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
+                    disabled={!selectedEventId || attendees.length === 0}
+                  >
+                    <option value="">
+                      {attendees.length === 0 ? "No approved attendees with wallet" : "Select attendee..."}
+                    </option>
+                    {attendees.map((att) => (
+                      <option key={att.id} value={att.id}>
+                        {att.name || att.email} ({truncateAddress(att.walletAddress)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-fg-muted mt-1">Attendee's wallet address is shown for verification.</p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Amount (ETH)</label>
                   <input
@@ -1028,7 +1032,7 @@ export default function WalletsPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={handleSendDetailsSubmit}
-                    disabled={sending || !selectedRecipient || !sendAmount}
+                    disabled={sending || !selectedEventId || !selectedAttendeeId || !sendAmount}
                     className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
                   >
                     {sending ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Next: Confirm →"}
@@ -1038,7 +1042,6 @@ export default function WalletsPage() {
                       setShowSendModal(false);
                       setSendStep("select");
                       setSendMasterPassword("");
-                      setSelectedRecipient(null);
                     }}
                     className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   >
@@ -1059,8 +1062,13 @@ export default function WalletsPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-fg-muted">To:</span>
                     <div className="text-right">
-                      <div className="font-semibold">{selectedRecipient?.name}</div>
-                      <div className="font-mono text-xs text-fg-muted">{truncateAddress(selectedRecipient?.walletAddress || "")}</div>
+                      <div className="font-semibold">
+                        {attendees.find(a => a.id === selectedAttendeeId)?.name || "Unknown"}
+                      </div>
+                      <div className="font-mono text-xs text-fg-muted">
+                        {attendees.find(a => a.id === selectedAttendeeId)?.walletAddress && 
+                          truncateAddress(attendees.find(a => a.id === selectedAttendeeId)!.walletAddress)}
+                      </div>
                     </div>
                   </div>
                   <div className="flex justify-between text-sm">
