@@ -4,7 +4,6 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getBalance, getWalletBalances, DEFAULT_NETWORK, NetworkId } from '@/lib/wallet';
 
-// GET - Get wallet balance for a specific network
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -17,7 +16,6 @@ export async function GET(
   const userId = (session.user as any).id;
   const walletId = params.id;
 
-  // Get wallet
   const wallet = await prisma.wallet.findUnique({
     where: { id: walletId },
   });
@@ -30,7 +28,6 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Get network from query params
   const searchParams = req.nextUrl.searchParams;
   const networkId = (searchParams.get('network') as NetworkId) || DEFAULT_NETWORK;
 
@@ -38,6 +35,7 @@ export async function GET(
     const balance = await getBalance(wallet.address, networkId);
     return NextResponse.json({
       address: wallet.address,
+      name: wallet.name,
       network: networkId,
       balance,
     });
@@ -49,7 +47,6 @@ export async function GET(
   }
 }
 
-// POST - Get balances for all networks
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -78,6 +75,7 @@ export async function POST(
     const balances = await getWalletBalances(wallet.address);
     return NextResponse.json({
       address: wallet.address,
+      name: wallet.name,
       balances,
     });
   } catch (error: any) {
