@@ -58,7 +58,7 @@ export async function GET(
     include: {
       user: true,
       checkIn: true,
-      nFT: true,  // Fixed: nFT instead of nft
+      NFT: true,  // Correct: NFT (all uppercase)
       certificate: true,
     },
     orderBy: { createdAt: 'desc' },
@@ -74,7 +74,7 @@ export async function GET(
 
   const reportData = applications.map(app => {
     const walletConnected = !!app.user.walletAddress;
-    const hasNft = !!app.nFT;  // Fixed: nFT instead of nft
+    const hasNft = !!app.NFT;  // Correct: NFT (all uppercase)
     const hasCertificate = !!app.certificate;
     const checkedIn = !!app.checkIn;
     const isVolunteer = volunteerUserIds.has(app.userId);
@@ -99,7 +99,7 @@ export async function GET(
   const rejected = applications.filter(a => a.status === 'REJECTED').length;
   const waitlisted = applications.filter(a => a.status === 'WAITLISTED').length;
   const checkedInCount = applications.filter(a => a.checkIn).length;
-  const nftMinted = applications.filter(a => a.nFT).length;  // Fixed: nFT instead of nft
+  const nftMinted = applications.filter(a => a.NFT).length;  // Correct: NFT (all uppercase)
   const certificates = applications.filter(a => a.certificate).length;
   const walletConnectedCount = applications.filter(a => a.user.walletAddress).length;
   const attendanceRate = total > 0 ? Math.round((checkedInCount / approved) * 100) : 0;
