@@ -41,7 +41,7 @@ interface Event {
 }
 
 interface Attendee {
-  id: string;        // applicationId
+  id: string;
   name: string | null;
   email: string;
   walletAddress: string;
@@ -62,6 +62,9 @@ export default function WalletsPage() {
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
+
+  // Receive state
+  const [receiveAddress, setReceiveAddress] = useState("");
 
   // Send state
   const [sendWalletId, setSendWalletId] = useState("");
@@ -155,7 +158,6 @@ export default function WalletsPage() {
       const res = await fetch(`/api/events/${eventId}/applications`);
       const data = await res.json();
       const apps = data.applications || [];
-      // Filter approved and have wallet
       const attendees: Attendee[] = apps
         .filter((a: any) => a.status === "APPROVED" && a.user.walletAddress)
         .map((a: any) => ({
@@ -388,9 +390,7 @@ export default function WalletsPage() {
       if (res.ok) {
         setSendTxHash(data.txHash);
         toast.success("Payment sent successfully! 🎉");
-        // Refresh wallet balances
         await fetchWallets();
-        // Close modal after a moment
         setTimeout(() => {
           setShowSendModal(false);
           setSendStep("details");
@@ -559,7 +559,7 @@ export default function WalletsPage() {
                   </button>
                   <button
                     onClick={() => {
-                      setSelectedWalletAddress(wallet.address);
+                      setReceiveAddress(wallet.address);
                       setShowReceiveModal(true);
                     }}
                     className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
@@ -751,9 +751,9 @@ export default function WalletsPage() {
             <p className="text-sm text-fg-muted mb-4">Share this address to receive funds.</p>
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 mb-4">
               <p className="text-xs text-fg-muted mb-1">Your Wallet Address</p>
-              <p className="font-mono text-sm break-all">{selectedWalletAddress}</p>
+              <p className="font-mono text-sm break-all">{receiveAddress}</p>
               <button
-                onClick={() => copyToClipboard(selectedWalletAddress)}
+                onClick={() => copyToClipboard(receiveAddress)}
                 className="mt-2 inline-flex items-center gap-1 text-blue-500 hover:underline text-sm"
               >
                 <Copy size={14} /> Copy Address
