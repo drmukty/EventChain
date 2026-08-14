@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from "recharts";
 import { 
-  Users, CheckCircle2, Clock, XCircle, Hexagon, UserX, Plus, FileText 
+  Users, CheckCircle2, Clock, XCircle, Hexagon, UserX, Plus, FileText, Loader2 
 } from "lucide-react";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
@@ -24,22 +26,49 @@ type Stats = {
 };
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [perEvent, setPerEvent] = useState<{ event: string; checkedIn: number; noShow: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Redirect if not authenticated
   useEffect(() => {
-    fetch("/api/dashboard/stats")
-      .then((r) => r.json())
-      .then((d) => {
-        setStats(d.stats);
-        setPerEvent(d.perEvent ?? []);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch dashboard stats:", error);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  // Fetch stats only when authenticated
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      fetchStats();
+    }
+  }, [status, session]);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/dashboard/stats");
+      if (!res.ok) {
+        if (res.status === 401) {
+          router.push("/login");
+          return;
+        }
+        throw new Error("Failed to fetch stats");
+      }
+      const data = await res.json();
+      setStats(data.stats);
+      setPerEvent(data.perEvent ?? []);
+    } catch (err) {
+      console.error("Failed to fetch dashboard stats:", err);
+      setError("Could not load dashboard data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const cards = stats
     ? [
@@ -56,7 +85,6 @@ export default function DashboardPage() {
 
   const attendanceRate = stats && stats.approved > 0 ? Math.round((stats.checkedIn / stats.approved) * 100) : 0;
 
-  // Loading skeleton for cards
   const LoadingCard = () => (
     <Card className="animate-pulse h-32">
       <div className="h-5 w-5 mb-3 bg-gray-200 dark:bg-gray-800 rounded" />
@@ -65,15 +93,32 @@ export default function DashboardPage() {
     </Card>
   );
 
+  // Show loading state
+  if (status === "loading" || loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-6 py-16">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (status === "unauthenticated") {
+    return null;
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Organizer dashboard</h1>
+          <h1 className="font-display text-3xl font-semibold">
+            Welcome back, {session?.user?.name || "Organizer"} 👋
+          </h1>
           <p className="mt-2 text-fg-muted">Live numbers across every event you manage.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {/* Reports Button - NEW */}
           <Link href="/dashboard/reports" className="no-underline">
             <Button variant="secondary" className="inline-flex items-center gap-2 px-4 py-2">
               <FileText size={16} /> Reports
@@ -87,11 +132,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {[...Array(8)].map((_, i) => (
-            <LoadingCard key={i} />
-          ))}
+      {error ? (
+        <div className="mt-10 p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-center">
+          <p className="text-red-400">{error}</p>
+          <button
+            onClick={fetchStats}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
         </div>
       ) : stats && stats.totalEvents === 0 ? (
         <div className="mt-16 text-center text-fg-muted">
