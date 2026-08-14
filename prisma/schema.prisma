@@ -236,9 +236,8 @@ model Application {
   qrCode   QRCode?
   checkIn  CheckIn?
   manualToken ManualToken?
-  payment  Payment?
   
-  // FIX: Added this array to fix the One-to-Many relation with Payment
+  // DELETED the old 'payment' field. ONLY keep this one:
   payments Payment[]
 
   @@unique([eventId, userId])
