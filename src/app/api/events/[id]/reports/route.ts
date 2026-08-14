@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { hasEventAccess } from '@/lib/eventAccess';
 import { createAuditLog } from '@/lib/audit';
 import { rateLimit } from '@/lib/rateLimit';
 import { stringify } from 'csv-stringify/sync';
@@ -34,13 +33,33 @@ export async function GET(
   const userId = (session.user as any).id;
   const eventId = params.id;
 
-  // 1. Authorization
-  const hasAccess = await hasEventAccess(userId, eventId, ['OWNER', 'ADMIN']);
-  if (!hasAccess) {
+  // 1. Check if event exists (any status - old, ended, etc.)
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organizerId: true, title: true, status: true },
+  });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  // 2. Authorization: Organizer, Admin, or Team Owner/Admin
+  const isAdmin = (session.user as any).role === 'ADMIN';
+  const isOrganizer = event.organizerId === userId;
+
+  let isTeamAdmin = false;
+  if (!isAdmin && !isOrganizer) {
+    const membership = await prisma.teamMember.findUnique({
+      where: { eventId_userId: { eventId, userId } },
+      select: { role: true },
+    });
+    isTeamAdmin = membership?.role === 'OWNER' || membership?.role === 'ADMIN';
+  }
+
+  if (!isAdmin && !isOrganizer && !isTeamAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // 2. Rate limiting (5 requests per 10 minutes)
+  // 3. Rate limiting (5 requests per 10 minutes)
   const { allowed } = rateLimit(userId);
   if (!allowed) {
     return NextResponse.json(
@@ -49,7 +68,7 @@ export async function GET(
     );
   }
 
-  // 3. Parse query parameters
+  // 4. Parse filters
   const searchParams = req.nextUrl.searchParams;
   const format = searchParams.get('format') || 'csv';
   const filters = {
@@ -60,7 +79,7 @@ export async function GET(
     nftHolders: searchParams.get('nftHolders') === 'true' ? true : searchParams.get('nftHolders') === 'false' ? false : undefined,
   };
 
-  // 4. Build query
+  // 5. Build query
   const where: any = { eventId };
   if (filters.status) {
     where.status = filters.status;
@@ -80,7 +99,7 @@ export async function GET(
     orderBy: { createdAt: 'desc' },
   });
 
-  // 5. Build report data
+  // 6. Get volunteers
   const volunteerUserIds = new Set(
     (await prisma.teamMember.findMany({
       where: { eventId },
@@ -88,6 +107,7 @@ export async function GET(
     })).map(t => t.userId)
   );
 
+  // 7. Build report data
   const reportData: ReportRow[] = applications.map(app => {
     const walletConnected = !!app.user.walletAddress;
     const hasNft = !!(app.checkIn?.nft);
@@ -109,7 +129,7 @@ export async function GET(
     };
   });
 
-  // 6. Summary stats
+  // 8. Summary stats
   const total = applications.length;
   const approved = applications.filter(a => a.status === 'APPROVED').length;
   const rejected = applications.filter(a => a.status === 'REJECTED').length;
@@ -121,17 +141,17 @@ export async function GET(
   const attendanceRate = total > 0 ? Math.round((checkedInCount / approved) * 100) : 0;
   const walletRate = total > 0 ? Math.round((walletConnectedCount / total) * 100) : 0;
 
-  // 7. Audit log
+  // 9. Audit log
   await createAuditLog({
     userId,
     action: 'EXPORT_REPORT',
     resource: 'event',
     resourceId: eventId,
-    metadata: { format, filters },
+    metadata: { format, filters, eventTitle: event.title, eventStatus: event.status },
     ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || undefined,
   });
 
-  // 8. Generate export
+  // 10. Generate export
   if (format === 'csv') {
     const csv = stringify(reportData, { header: true });
     return new NextResponse(csv, {
@@ -162,11 +182,18 @@ export async function GET(
     let y = height - 50;
 
     // Title
-    page.drawText(`Event Report - ${eventId}`, {
+    page.drawText(`Event Report: ${event.title}`, {
       x: 50,
       y,
       size: 18,
       color: rgb(0, 0, 0),
+    });
+    y -= 20;
+    page.drawText(`Status: ${event.status} | Generated: ${new Date().toLocaleString()}`, {
+      x: 50,
+      y,
+      size: 10,
+      color: rgb(0.3, 0.3, 0.3),
     });
     y -= 30;
 
@@ -218,10 +245,7 @@ export async function GET(
     });
 
     const pdfBytes = await doc.save();
-    
-    // Convert Uint8Array to Buffer for NextResponse
     const buffer = Buffer.from(pdfBytes);
-    
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',
