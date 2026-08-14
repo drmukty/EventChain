@@ -102,17 +102,34 @@ export async function GET(
     })).map(t => t.userId)
   );
 
-  // 7. Build report data – removed Email and Application Motivation
+  // 7. Build report data
   const reportData: ReportRow[] = applications.map(app => {
-    const walletConnected = !!app.user.walletAddress;
     const hasNft = !!(app.checkIn?.nft);
     const hasCertificate = !!(app.checkIn?.certificate);
     const checkedIn = !!app.checkIn;
     const isVolunteer = volunteerUserIds.has(app.userId);
 
+    // Get wallet address from multiple sources
+    let walletAddress = 'Not Connected';
+    
+    // First check if user has wallet address
+    if (app.user.walletAddress) {
+      walletAddress = app.user.walletAddress;
+    } 
+    // If not, check if NFT has contract address (this means they minted)
+    else if (app.checkIn?.nft?.contractAddr) {
+      // If they have an NFT, they must have connected a wallet
+      // We'll mark it as "Connected (NFT Minted)" to indicate they had a wallet
+      walletAddress = 'Connected (NFT Minted)';
+    }
+    // If they have a check-in but no wallet, they might have used QR
+    else if (app.checkIn) {
+      walletAddress = 'Not Connected';
+    }
+
     return {
       'Attendee Name': app.user.name || 'N/A',
-      'Wallet Address': app.user.walletAddress || 'Not Connected',
+      'Wallet Address': walletAddress,
       'Application Status': app.status,
       'Attendance Status': checkedIn ? 'Checked In' : 'Not Checked In',
       'Check-in Time': app.checkIn?.checkedInAt?.toISOString() || 'N/A',
@@ -132,7 +149,7 @@ export async function GET(
     ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || undefined,
   });
 
-  // 9. Generate CSV only
+  // 9. Generate CSV
   const csv = stringify(reportData, { header: true });
   return new NextResponse(csv, {
     headers: {
