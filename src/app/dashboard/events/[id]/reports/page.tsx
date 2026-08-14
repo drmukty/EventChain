@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Loader2, FileSpreadsheet, FileText, File } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ReportsPage() {
@@ -39,11 +39,11 @@ export default function ReportsPage() {
     }
   }, [status, eventId, router]);
 
-  const handleExport = async (format: 'csv' | 'xlsx' | 'pdf') => {
+  const handleExport = async () => {
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      params.set('format', format);
+      params.set('format', 'csv');
       if (filters.status) params.set('status', filters.status);
       if (filters.checkedIn !== '') params.set('checkedIn', filters.checkedIn);
       if (filters.walletConnected !== '') params.set('walletConnected', filters.walletConnected);
@@ -62,7 +62,7 @@ export default function ReportsPage() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `event-report-${eventId}.${format === 'xlsx' ? 'xlsx' : format}`;
+      a.download = `event-report-${eventId}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -159,35 +159,17 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Export Buttons */}
+      {/* Export Button - Only CSV */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Export Report</h2>
-        <div className="flex flex-wrap gap-4">
-          <button
-            onClick={() => handleExport('csv')}
-            disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
-          >
-            <FileText size={18} />
-            CSV
-          </button>
-          <button
-            onClick={() => handleExport('xlsx')}
-            disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 transition-colors"
-          >
-            <FileSpreadsheet size={18} />
-            Excel (XLSX)
-          </button>
-          <button
-            onClick={() => handleExport('pdf')}
-            disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
-          >
-            <File size={18} />
-            PDF
-          </button>
-        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+        >
+          <FileText size={18} />
+          CSV
+        </button>
         {exporting && (
           <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -195,7 +177,8 @@ export default function ReportsPage() {
           </div>
         )}
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          Reports include attendee details, application status, check‑in, NFT, certificate, and volunteer information.
+          CSV includes attendee name, wallet address, application status, attendance status,
+          check‑in time, NFT minted, certificate issued, and volunteer status.
           Exports are limited to 5 requests per 10 minutes per user.
         </p>
       </div>
