@@ -236,8 +236,6 @@ model Application {
   qrCode   QRCode?
   checkIn  CheckIn?
   manualToken ManualToken?
-  
-  // DELETED the old 'payment' field. ONLY keep this one:
   payments Payment[]
 
   @@unique([eventId, userId])
@@ -331,7 +329,8 @@ model Wallet {
   id            String   @id @default(cuid())
   userId        String
   address       String   @unique
-  encryptedKey  String   // AES-256 encrypted private key
+  name          String?  // ← ADDED
+  encryptedKey  String
   isDefault     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -353,7 +352,7 @@ model Payment {
   txHash         String?
   status         PaymentStatus @default(PENDING)
   error          String?
-  networkId      String   // 'baseSepolia' or 'robinhood'
+  networkId      String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
