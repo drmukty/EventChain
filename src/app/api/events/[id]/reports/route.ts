@@ -218,7 +218,11 @@ export async function GET(
     });
 
     const pdfBytes = await doc.save();
-    return new NextResponse(pdfBytes, {
+    
+    // Convert Uint8Array to Buffer for NextResponse
+    const buffer = Buffer.from(pdfBytes);
+    
+    return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename=event-report-${eventId}.pdf`,
