@@ -9,6 +9,19 @@ import { stringify } from 'csv-stringify/sync';
 import * as XLSX from 'xlsx';
 import { PDFDocument, rgb } from 'pdf-lib';
 
+type ReportRow = {
+  'Attendee Name': string;
+  'Email': string;
+  'Wallet Address': string;
+  'Application Status': string;
+  'Attendance Status': string;
+  'Check-in Time': string;
+  'NFT Minted': string;
+  'Certificate Issued': string;
+  'Volunteer': string;
+  'Application Motivation': string;
+};
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -60,7 +73,7 @@ export async function GET(
       checkIn: {
         include: {
           nft: true,
-          certificate: true,  // Certificate is on CheckIn
+          certificate: true,
         },
       },
     },
@@ -75,7 +88,7 @@ export async function GET(
     })).map(t => t.userId)
   );
 
-  const reportData = applications.map(app => {
+  const reportData: ReportRow[] = applications.map(app => {
     const walletConnected = !!app.user.walletAddress;
     const hasNft = !!(app.checkIn?.nft);
     const hasCertificate = !!(app.checkIn?.certificate);
@@ -176,11 +189,11 @@ export async function GET(
     });
     y -= 20;
 
-    // Table headers (first 5 columns)
-    const headers = Object.keys(reportData[0] || {}).slice(0, 5);
+    // Table headers
+    const headers = Object.keys(reportData[0] || {}) as (keyof ReportRow)[];
     const colWidth = 450 / headers.length;
     headers.forEach((h, i) => {
-      page.drawText(h, {
+      page.drawText(String(h), {
         x: 50 + i * colWidth,
         y,
         size: 8,
