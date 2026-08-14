@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { Loader2, Wallet, Copy, Check, Plus, Key, Shield, ExternalLink } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { truncateAddress, NETWORKS, DEFAULT_NETWORK, getBalance, getWalletBalances } from '@/lib/wallet';
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Loader2, Wallet, Copy, Check, Plus, Key, ExternalLink } from "lucide-react";
+import toast from "react-hot-toast";
+import { truncateAddress, NETWORKS, getWalletBalances } from "@/lib/wallet";
 
 export default function WalletsPage() {
   const { data: session, status, update } = useSession();
@@ -15,21 +15,22 @@ export default function WalletsPage() {
   const [balances, setBalances] = useState<Record<string, string>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [masterPassword, setMasterPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [importPrivateKey, setImportPrivateKey] = useState('');
+  const [masterPassword, setMasterPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [importPrivateKey, setImportPrivateKey] = useState("");
   const [isCreating, setIsCreating] = useState(false);
-  const [newPrivateKey, setNewPrivateKey] = useState('');
-  const [newAddress, setNewAddress] = useState('');
+  const [newPrivateKey, setNewPrivateKey] = useState("");
+  const [newAddress, setNewAddress] = useState("");
   const [copied, setCopied] = useState(false);
   const [hasSavedKey, setHasSavedKey] = useState(false);
+  const [step, setStep] = useState<"password" | "showKey">("password");
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
+    if (status === "unauthenticated") {
+      router.push("/login");
       return;
     }
-    if (status === 'authenticated') {
+    if (status === "authenticated") {
       fetchWallet();
     }
   }, [status]);
@@ -37,76 +38,79 @@ export default function WalletsPage() {
   const fetchWallet = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/user/wallets');
+      const res = await fetch("/api/user/wallets");
       const data = await res.json();
       if (data.wallets && data.wallets.length > 0) {
         setWallet(data.wallets[0]);
         fetchBalances(data.wallets[0].address);
+      } else {
+        setWallet(null);
+        setBalances({});
       }
     } catch (error) {
-      toast.error('Failed to load wallet');
+      toast.error("Failed to load wallet");
     } finally {
       setLoading(false);
     }
   };
 
   const fetchBalances = async (address: string) => {
+    if (!address) return;
     try {
-      const res = await fetch(`/api/user/wallets/${wallet?.id || 'temp'}/balance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`/api/user/wallets/${wallet?.id || "temp"}/balance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
       const data = await res.json();
       if (data.balances) {
         setBalances(data.balances);
       }
     } catch (error) {
-      console.error('Balance fetch error:', error);
+      console.error("Balance fetch error:", error);
     }
   };
 
   const handleCreateWallet = async () => {
     if (!masterPassword || masterPassword.length < 6) {
-      toast.error('Master password must be at least 6 characters');
+      toast.error("Master password must be at least 6 characters");
       return;
     }
     if (masterPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error("Passwords do not match");
       return;
     }
     if (!hasSavedKey) {
-      toast.error('Please confirm you have saved your private key');
+      toast.error("Please confirm you have saved your private key");
       return;
     }
 
     setIsCreating(true);
     try {
-      const res = await fetch('/api/user/wallets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/user/wallets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masterPassword }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setNewPrivateKey(data.privateKey);
-        setNewAddress(data.wallet.address);
-        toast.success('Wallet created successfully!');
+        toast.success("Wallet created successfully!");
         await update();
-        setTimeout(() => {
-          setShowCreateModal(false);
-          setMasterPassword('');
-          setConfirmPassword('');
-          setNewPrivateKey('');
-          setNewAddress('');
-          setHasSavedKey(false);
-          fetchWallet();
-        }, 2000);
+        // Reset and close modal
+        setShowCreateModal(false);
+        setMasterPassword("");
+        setConfirmPassword("");
+        setNewPrivateKey("");
+        setNewAddress("");
+        setHasSavedKey(false);
+        setStep("password");
+        // Refresh wallet data
+        await fetchWallet();
       } else {
-        toast.error(data.error || 'Failed to create wallet');
+        toast.error(data.error || "Failed to create wallet");
       }
     } catch (error) {
-      toast.error('Failed to create wallet');
+      toast.error("Failed to create wallet");
     } finally {
       setIsCreating(false);
     }
@@ -114,19 +118,19 @@ export default function WalletsPage() {
 
   const handleImportWallet = async () => {
     if (!masterPassword || masterPassword.length < 6) {
-      toast.error('Master password must be at least 6 characters');
+      toast.error("Master password must be at least 6 characters");
       return;
     }
     if (!importPrivateKey || importPrivateKey.length < 10) {
-      toast.error('Please enter a valid private key');
+      toast.error("Please enter a valid private key");
       return;
     }
 
     setIsCreating(true);
     try {
-      const res = await fetch('/api/user/wallets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/user/wallets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           masterPassword,
           importPrivateKey: importPrivateKey.trim(),
@@ -135,18 +139,18 @@ export default function WalletsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success('Wallet imported successfully!');
+        toast.success("Wallet imported successfully!");
         await update();
         setShowImportModal(false);
-        setMasterPassword('');
-        setConfirmPassword('');
-        setImportPrivateKey('');
-        fetchWallet();
+        setMasterPassword("");
+        setConfirmPassword("");
+        setImportPrivateKey("");
+        await fetchWallet();
       } else {
-        toast.error(data.error || 'Failed to import wallet');
+        toast.error(data.error || "Failed to import wallet");
       }
     } catch (error) {
-      toast.error('Failed to import wallet');
+      toast.error("Failed to import wallet");
     } finally {
       setIsCreating(false);
     }
@@ -155,8 +159,45 @@ export default function WalletsPage() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success('Copied to clipboard!');
+    toast.success("Copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Start create flow – show password form
+  const startCreate = () => {
+    setStep("password");
+    setShowCreateModal(true);
+  };
+
+  // After password entered, show private key
+  const proceedToKey = () => {
+    if (!masterPassword || masterPassword.length < 6) {
+      toast.error("Master password must be at least 6 characters");
+      return;
+    }
+    if (masterPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    // Generate key and show it
+    setIsCreating(true);
+    fetch("/api/user/wallets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ masterPassword }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.privateKey) {
+          setNewPrivateKey(data.privateKey);
+          setNewAddress(data.wallet.address);
+          setStep("showKey");
+        } else {
+          toast.error("Failed to generate wallet");
+        }
+      })
+      .catch(() => toast.error("Failed to generate wallet"))
+      .finally(() => setIsCreating(false));
   };
 
   if (loading) {
@@ -177,7 +218,7 @@ export default function WalletsPage() {
         {!wallet && (
           <div className="flex gap-2">
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={startCreate}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
             >
               <Plus size={18} />
@@ -203,7 +244,7 @@ export default function WalletsPage() {
           </p>
           <div className="flex justify-center gap-3">
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={startCreate}
               className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               Create New Wallet
@@ -242,10 +283,11 @@ export default function WalletsPage() {
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(balances).map(([network, balance]) => {
                 const networkInfo = NETWORKS[network as keyof typeof NETWORKS];
+                if (!networkInfo) return null;
                 return (
                   <div key={network} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                    <p className="text-sm text-fg-muted">{networkInfo?.name || network}</p>
-                    <p className="text-2xl font-bold">{parseFloat(balance).toFixed(4)} {networkInfo?.symbol || 'ETH'}</p>
+                    <p className="text-sm text-fg-muted">{networkInfo.name}</p>
+                    <p className="text-2xl font-bold">{parseFloat(balance).toFixed(4)} {networkInfo.symbol}</p>
                   </div>
                 );
               })}
@@ -262,22 +304,6 @@ export default function WalletsPage() {
               </a>
             </div>
           </div>
-
-          {/* Info Box */}
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-blue-400">Wallet Security</p>
-                <p className="text-sm text-fg-muted">
-                  Your private key is encrypted with your master password and stored securely.
-                  Never share your master password or private key with anyone.
-                  <br />
-                  <span className="text-xs text-yellow-400">⚠️ If you lose your master password, your funds CANNOT be recovered.</span>
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -287,10 +313,60 @@ export default function WalletsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-2xl font-bold mb-4">Create New Wallet</h2>
 
-            {newPrivateKey ? (
+            {step === "password" ? (
+              <div className="space-y-4">
+                <p className="text-sm text-fg-muted">
+                  Set a master password to encrypt your private key. This password will be required to send payments.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Master Password</label>
+                  <input
+                    type="password"
+                    value={masterPassword}
+                    onChange={(e) => setMasterPassword(e.target.value)}
+                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
+                    placeholder="Enter master password (min 6 chars)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
+                    placeholder="Confirm master password"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={proceedToKey}
+                    disabled={!masterPassword || masterPassword.length < 6 || masterPassword !== confirmPassword || isCreating}
+                    className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                  >
+                    {isCreating ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Continue →"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setMasterPassword("");
+                      setConfirmPassword("");
+                      setNewPrivateKey("");
+                      setNewAddress("");
+                      setHasSavedKey(false);
+                      setStep("password");
+                    }}
+                    className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Show private key step
               <div className="space-y-4">
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-                  <p className="text-sm text-yellow-400 font-medium">⚠️ Important: Save Your Private Key</p>
+                  <p className="text-sm text-yellow-400 font-medium">⚠️ Save Your Private Key</p>
                   <p className="text-xs text-fg-muted mt-1">
                     This is the ONLY time you will see this private key. Save it securely.
                     If you lose it, your funds CANNOT be recovered.
@@ -318,53 +394,23 @@ export default function WalletsPage() {
                   />
                   <span className="text-sm">I have saved my private key securely</span>
                 </label>
-                <button
-                  onClick={handleCreateWallet}
-                  disabled={!hasSavedKey || isCreating}
-                  className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                >
-                  {isCreating ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : 'Confirm & Create'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-fg-muted">
-                  You will need to set a master password to encrypt your private key.
-                  This password will be required to send payments.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Master Password</label>
-                  <input
-                    type="password"
-                    value={masterPassword}
-                    onChange={(e) => setMasterPassword(e.target.value)}
-                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
-                    placeholder="Enter master password (min 6 chars)"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
-                    placeholder="Confirm master password"
-                  />
-                </div>
                 <div className="flex gap-3">
                   <button
                     onClick={handleCreateWallet}
-                    disabled={!masterPassword || masterPassword.length < 6 || masterPassword !== confirmPassword || isCreating}
+                    disabled={!hasSavedKey || isCreating}
                     className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
                   >
-                    {isCreating ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : 'Continue →'}
+                    {isCreating ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Confirm & Create"}
                   </button>
                   <button
                     onClick={() => {
                       setShowCreateModal(false);
-                      setMasterPassword('');
-                      setConfirmPassword('');
+                      setMasterPassword("");
+                      setConfirmPassword("");
+                      setNewPrivateKey("");
+                      setNewAddress("");
+                      setHasSavedKey(false);
+                      setStep("password");
                     }}
                     className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   >
@@ -412,13 +458,13 @@ export default function WalletsPage() {
                   disabled={!importPrivateKey || !masterPassword || masterPassword.length < 6 || isCreating}
                   className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
                 >
-                  {isCreating ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : 'Import Wallet'}
+                  {isCreating ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Import Wallet"}
                 </button>
                 <button
                   onClick={() => {
                     setShowImportModal(false);
-                    setMasterPassword('');
-                    setImportPrivateKey('');
+                    setMasterPassword("");
+                    setImportPrivateKey("");
                   }}
                   className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                 >
