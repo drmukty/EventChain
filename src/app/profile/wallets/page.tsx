@@ -10,6 +10,8 @@ import {
 import toast from "react-hot-toast";
 import { truncateAddress, NETWORKS, NetworkId, DEFAULT_NETWORK } from "@/lib/wallet";
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 interface WalletData {
   id: string;
   address: string;
@@ -40,6 +42,8 @@ interface UserRecipient {
   walletAddress: string;
   walletId: string;
 }
+
+// ─── Component ─────────────────────────────────────────────────────────────
 
 export default function WalletsPage() {
   const { data: session, status } = useSession();
