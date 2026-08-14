@@ -237,6 +237,9 @@ model Application {
   checkIn  CheckIn?
   manualToken ManualToken?
   payment  Payment?
+  
+  // FIX: Added this array to fix the One-to-Many relation with Payment
+  payments Payment[]
 
   @@unique([eventId, userId])
   @@index([eventId, status])
