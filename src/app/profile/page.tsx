@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { User, Mail, Lock, Save, Loader2, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, Save, Loader2, Eye, EyeOff, Wallet } from "lucide-react";
 import Image from "next/image";
 import AvatarUpload from "@/components/Profile/AvatarUpload";
 import StatsCard from "@/components/Profile/StatsCard";
@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [stats, setStats] = useState({ events: 0, nfts: 0, certificates: 0 });
   const [telegramId, setTelegramId] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
   // Password state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -45,6 +46,7 @@ export default function ProfilePage() {
     setEmail(user.email || "");
     setAvatarUrl(user.avatarUrl || user.image || null);
     setTelegramId(user.telegramId || null);
+    setWalletAddress(user.walletAddress || null);
 
     fetch("/api/user/stats")
       .then((r) => r.json())
@@ -311,6 +313,27 @@ export default function ProfilePage() {
                 </div>
               </form>
             )}
+          </div>
+
+          {/* Wallet Section */}
+          <div className="glass-panel rounded-2xl p-6">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-base-400" />
+              Wallet
+            </h3>
+            <p className="text-sm text-fg-muted mt-2">
+              {walletAddress ? (
+                <>Connected: <span className="font-mono text-xs">{walletAddress}</span></>
+              ) : (
+                "No wallet connected"
+              )}
+            </p>
+            <Link href="/profile/wallets">
+              <button className="mt-3 rounded-full border border-white/20 px-4 py-2 text-sm hover:bg-white/5 flex items-center gap-2 transition-colors">
+                <Wallet className="h-4 w-4" />
+                {walletAddress ? "Manage Wallet" : "Create / Import Wallet"}
+              </button>
+            </Link>
           </div>
 
           {/* Telegram */}
