@@ -5,16 +5,15 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
   Loader2, Wallet, Copy, Check, Plus, Key, ExternalLink, Star, Send, QrCode, History, Clock, 
-  CheckCircle2, XCircle, ChevronDown 
+  CheckCircle2, XCircle, ChevronDown, Settings, Pencil, Trash2, Search, User as UserIcon 
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { truncateAddress, NETWORKS, NetworkId, DEFAULT_NETWORK } from "@/lib/wallet";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
 interface WalletData {
   id: string;
   address: string;
+  name: string | null;
   isDefault: boolean;
   createdAt: string;
   balances?: Record<string, string>;
@@ -29,33 +28,32 @@ interface Transaction {
   status: string;
   txHash: string | null;
   networkId: string;
-  eventTitle: string;
-  attendeeName: string;
+  recipientName: string;
   createdAt: string;
   explorerUrl: string | null;
 }
 
-interface Event {
+interface UserRecipient {
   id: string;
-  title: string;
-}
-
-interface Attendee {
-  id: string;        // applicationId
-  name: string | null;
+  name: string;
   email: string;
   walletAddress: string;
+  walletId: string;
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────
-
 export default function WalletsPage() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [activeWalletId, setActiveWalletId] = useState<string>("");
   const [selectedNetwork, setSelectedNetwork] = useState<NetworkId>(DEFAULT_NETWORK);
+
+  // Dropdowns
+  const [showGearDropdown, setShowGearDropdown] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [renameWalletId, setRenameWalletId] = useState("");
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -71,16 +69,16 @@ export default function WalletsPage() {
   const [sendWalletId, setSendWalletId] = useState("");
   const [sendWalletAddress, setSendWalletAddress] = useState("");
   const [sendNetwork, setSendNetwork] = useState<NetworkId>(DEFAULT_NETWORK);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
-  const [attendees, setAttendees] = useState<Attendee[]>([]);
-  const [selectedAttendeeId, setSelectedAttendeeId] = useState("");
+  const [recipients, setRecipients] = useState<UserRecipient[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRecipient, setSelectedRecipient] = useState<UserRecipient | null>(null);
   const [sendAmount, setSendAmount] = useState("");
   const [sendMasterPassword, setSendMasterPassword] = useState("");
-  const [sendStep, setSendStep] = useState<"details" | "confirm">("details");
+  const [sendStep, setSendStep] = useState<"select" | "confirm">("select");
   const [sendPaymentId, setSendPaymentId] = useState("");
   const [sending, setSending] = useState(false);
   const [sendTxHash, setSendTxHash] = useState("");
+  const [showRecipientDropdown, setShowRecipientDropdown] = useState(false);
 
   // Create/Import state
   const [masterPassword, setMasterPassword] = useState("");
@@ -105,6 +103,7 @@ export default function WalletsPage() {
     }
     if (status === "authenticated") {
       fetchWallets();
+      fetchRecipients();
     }
   }, [status]);
 
@@ -131,7 +130,6 @@ export default function WalletsPage() {
           })
         );
         setWallets(walletsWithBalances);
-        // Set active wallet to default or first
         const defaultWallet = walletsWithBalances.find(w => w.isDefault);
         setActiveWalletId(defaultWallet?.id || walletsWithBalances[0]?.id || "");
         setSelectedNetwork(DEFAULT_NETWORK);
@@ -143,33 +141,13 @@ export default function WalletsPage() {
     }
   };
 
-  const fetchEvents = async () => {
+  const fetchRecipients = async () => {
     try {
-      const res = await fetch("/api/events?mine=true");
+      const res = await fetch("/api/users");
       const data = await res.json();
-      setEvents(data.events || []);
+      setRecipients(data.users || []);
     } catch {
-      toast.error("Failed to load events");
-    }
-  };
-
-  const fetchAttendees = async (eventId: string) => {
-    try {
-      const res = await fetch(`/api/events/${eventId}/applications`);
-      const data = await res.json();
-      const apps = data.applications || [];
-      // Only approved and have wallet address
-      const attendees: Attendee[] = apps
-        .filter((a: any) => a.status === "APPROVED" && a.user.walletAddress)
-        .map((a: any) => ({
-          id: a.id,
-          name: a.user.name || a.user.email,
-          email: a.user.email,
-          walletAddress: a.user.walletAddress,
-        }));
-      setAttendees(attendees);
-    } catch {
-      toast.error("Failed to load attendees");
+      console.error("Failed to load recipients");
     }
   };
 
@@ -221,6 +199,66 @@ export default function WalletsPage() {
   const startCreate = () => {
     setStep("password");
     setShowCreateModal(true);
+    setShowGearDropdown(false);
+  };
+
+  const openImport = () => {
+    setShowImportModal(true);
+    setShowGearDropdown(false);
+  };
+
+  const openRename = () => {
+    const wallet = wallets.find(w => w.id === activeWalletId);
+    if (wallet) {
+      setRenameWalletId(wallet.id);
+      setRenameName(wallet.name || "");
+      setShowRenameModal(true);
+      setShowGearDropdown(false);
+    }
+  };
+
+  const handleRename = async () => {
+    if (!renameName.trim()) {
+      toast.error("Please enter a wallet name");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/user/wallets/${renameWalletId}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameName.trim() }),
+      });
+      if (res.ok) {
+        toast.success("Wallet renamed!");
+        setShowRenameModal(false);
+        await fetchWallets();
+      } else {
+        toast.error("Failed to rename wallet");
+      }
+    } catch {
+      toast.error("Failed to rename wallet");
+    }
+  };
+
+  const handleDeleteWallet = async () => {
+    if (!activeWalletId) return;
+    if (!confirm("Are you sure you want to delete this wallet? This cannot be undone.")) return;
+
+    try {
+      const res = await fetch(`/api/user/wallets/${activeWalletId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Wallet deleted");
+        setShowGearDropdown(false);
+        await fetchWallets();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to delete wallet");
+      }
+    } catch {
+      toast.error("Failed to delete wallet");
+    }
   };
 
   const proceedToKey = async () => {
@@ -316,31 +354,31 @@ export default function WalletsPage() {
     setSendWalletId(wallet.id);
     setSendWalletAddress(wallet.address);
     setSendNetwork(selectedNetwork);
-    setSendStep("details");
+    setSendStep("select");
     setSendAmount("");
-    setSelectedEventId("");
-    setSelectedAttendeeId("");
-    setAttendees([]);
+    setSelectedRecipient(null);
+    setSearchQuery("");
     setSendMasterPassword("");
     setSendPaymentId("");
     setSendTxHash("");
-    fetchEvents();
+    setShowRecipientDropdown(false);
     setShowSendModal(true);
   };
 
-  const handleEventChange = (eventId: string) => {
-    setSelectedEventId(eventId);
-    setSelectedAttendeeId("");
-    if (eventId) {
-      fetchAttendees(eventId);
-    } else {
-      setAttendees([]);
-    }
+  const filteredRecipients = recipients.filter(r =>
+    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleSelectRecipient = (recipient: UserRecipient) => {
+    setSelectedRecipient(recipient);
+    setShowRecipientDropdown(false);
+    setSearchQuery("");
   };
 
   const handleSendDetailsSubmit = async () => {
-    if (!selectedEventId || !selectedAttendeeId || !sendAmount) {
-      toast.error("Please fill all fields");
+    if (!selectedRecipient || !sendAmount) {
+      toast.error("Please select a recipient and enter amount");
       return;
     }
     if (isNaN(parseFloat(sendAmount)) || parseFloat(sendAmount) <= 0) {
@@ -350,11 +388,12 @@ export default function WalletsPage() {
 
     setSending(true);
     try {
-      const res = await fetch(`/api/events/${selectedEventId}/payments`, {
+      const res = await fetch(`/api/events/0/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          applicationId: selectedAttendeeId,
+          recipientId: selectedRecipient.id,
+          recipientWallet: selectedRecipient.walletAddress,
           amount: sendAmount,
           networkId: sendNetwork,
         }),
@@ -382,7 +421,7 @@ export default function WalletsPage() {
 
     setSending(true);
     try {
-      const res = await fetch(`/api/events/${selectedEventId}/payments/confirm`, {
+      const res = await fetch(`/api/events/0/payments/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -397,9 +436,10 @@ export default function WalletsPage() {
         await fetchWallets();
         setTimeout(() => {
           setShowSendModal(false);
-          setSendStep("details");
+          setSendStep("select");
           setSendMasterPassword("");
           setSendTxHash("");
+          setSelectedRecipient(null);
         }, 2000);
       } else {
         toast.error(data.error || "Payment confirmation failed");
@@ -456,21 +496,51 @@ export default function WalletsPage() {
           <h1 className="text-3xl font-bold">Wallets</h1>
           <p className="text-fg-muted">Manage your crypto wallets for event payments</p>
         </div>
-        <div className="flex gap-2">
+        <div className="relative">
           <button
-            onClick={startCreate}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            onClick={() => setShowGearDropdown(!showGearDropdown)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
-            <Plus size={18} />
-            Create Wallet
+            <Settings className="h-6 w-6 text-gray-500" />
           </button>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
-          >
-            <Key size={18} />
-            Import
-          </button>
+
+          {showGearDropdown && (
+            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+              <button
+                onClick={startCreate}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Plus size={16} />
+                Create New Wallet
+              </button>
+              <button
+                onClick={openImport}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Key size={16} />
+                Import Wallet
+              </button>
+              {activeWallet && (
+                <>
+                  <hr className="border-gray-200 dark:border-gray-700" />
+                  <button
+                    onClick={openRename}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Pencil size={16} />
+                    Rename This Wallet
+                  </button>
+                  <button
+                    onClick={handleDeleteWallet}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    Delete This Wallet
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -485,7 +555,7 @@ export default function WalletsPage() {
             <button onClick={startCreate} className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
               Create New Wallet
             </button>
-            <button onClick={() => setShowImportModal(true)} className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+            <button onClick={openImport} className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
               Import Existing
             </button>
           </div>
@@ -498,11 +568,11 @@ export default function WalletsPage() {
             <select
               value={activeWalletId}
               onChange={(e) => setActiveWalletId(e.target.value)}
-              className="rounded-lg border p-2 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 font-mono text-sm flex-1 min-w-[200px]"
+              className="rounded-lg border p-2 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-sm flex-1 min-w-[200px]"
             >
               {wallets.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {truncateAddress(w.address)} {w.isDefault ? '⭐' : ''}
+                  {w.name || truncateAddress(w.address)} {w.isDefault ? '⭐' : ''}
                 </option>
               ))}
             </select>
@@ -514,15 +584,16 @@ export default function WalletsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-fg-muted">Wallet Address</p>
+                    <p className="text-sm text-fg-muted">Wallet Name</p>
                     {activeWallet.isDefault && (
                       <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Star className="h-3 w-3 fill-blue-400" /> Default
                       </span>
                     )}
                   </div>
+                  <p className="text-xl font-semibold">{activeWallet.name || "Unnamed Wallet"}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <p className="font-mono text-lg break-all">{activeWallet.address}</p>
+                    <p className="text-sm font-mono text-fg-muted">{activeWallet.address}</p>
                     <button
                       onClick={() => copyToClipboard(activeWallet.address)}
                       className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
@@ -592,6 +663,43 @@ export default function WalletsPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Rename Modal ────────────────────────────────────────────────────── */}
+      {showRenameModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold mb-4">Rename Wallet</h2>
+            <div>
+              <label className="block text-sm font-medium mb-1">Wallet Name</label>
+              <input
+                type="text"
+                value={renameName}
+                onChange={(e) => setRenameName(e.target.value)}
+                className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
+                placeholder="Enter wallet name"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRename();
+                }}
+              />
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleRename}
+                className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setShowRenameModal(false)}
+                className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -792,9 +900,10 @@ export default function WalletsPage() {
               <button
                 onClick={() => {
                   setShowSendModal(false);
-                  setSendStep("details");
+                  setSendStep("select");
                   setSendMasterPassword("");
                   setSendTxHash("");
+                  setSelectedRecipient(null);
                 }}
                 className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
@@ -803,7 +912,6 @@ export default function WalletsPage() {
             </div>
 
             {sendTxHash ? (
-              // Success view
               <div className="text-center py-4">
                 <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -834,8 +942,7 @@ export default function WalletsPage() {
                   </a>
                 </div>
               </div>
-            ) : sendStep === "details" ? (
-              // Details form
+            ) : sendStep === "select" ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">From Wallet</label>
@@ -853,38 +960,55 @@ export default function WalletsPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Select Event</label>
-                  <select
-                    value={selectedEventId}
-                    onChange={(e) => handleEventChange(e.target.value)}
-                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
-                  >
-                    <option value="">Select an event...</option>
-                    {events.map((ev) => (
-                      <option key={ev.id} value={ev.id}>{ev.title}</option>
-                    ))}
-                  </select>
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1">Search Recipient</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setShowRecipientDropdown(true);
+                        if (e.target.value === "") setSelectedRecipient(null);
+                      }}
+                      onFocus={() => setShowRecipientDropdown(true)}
+                      placeholder="Search by name or email..."
+                      className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700 pr-10"
+                    />
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  </div>
+
+                  {showRecipientDropdown && (
+                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto shadow-lg">
+                      {filteredRecipients.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-fg-muted">No users found</div>
+                      ) : (
+                        filteredRecipients.map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() => handleSelectRecipient(r)}
+                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                          >
+                            <UserIcon size={16} className="text-gray-400 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{r.name}</div>
+                              <div className="text-xs text-fg-muted truncate">{r.walletAddress}</div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Select Attendee</label>
-                  <select
-                    value={selectedAttendeeId}
-                    onChange={(e) => setSelectedAttendeeId(e.target.value)}
-                    className="w-full rounded-lg border p-3 bg-gray-50 dark:bg-gray-700"
-                    disabled={!selectedEventId || attendees.length === 0}
-                  >
-                    <option value="">
-                      {attendees.length === 0 ? "No approved attendees with wallet" : "Select attendee..."}
-                    </option>
-                    {attendees.map((att) => (
-                      <option key={att.id} value={att.id}>
-                        {att.name || att.email}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-fg-muted mt-1">Attendee's wallet address is hidden for privacy.</p>
-                </div>
+
+                {selectedRecipient && (
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                    <p className="text-sm font-medium">Selected Recipient</p>
+                    <p className="text-sm font-semibold">{selectedRecipient.name}</p>
+                    <p className="text-xs font-mono text-fg-muted">{selectedRecipient.walletAddress}</p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium mb-1">Amount (ETH)</label>
                   <input
@@ -900,16 +1024,17 @@ export default function WalletsPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={handleSendDetailsSubmit}
-                    disabled={sending || !selectedEventId || !selectedAttendeeId || !sendAmount}
+                    disabled={sending || !selectedRecipient || !sendAmount}
                     className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
                   >
-                    {sending ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Send Payment"}
+                    {sending ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Next: Confirm →"}
                   </button>
                   <button
                     onClick={() => {
                       setShowSendModal(false);
-                      setSendStep("details");
+                      setSendStep("select");
                       setSendMasterPassword("");
+                      setSelectedRecipient(null);
                     }}
                     className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   >
@@ -921,11 +1046,33 @@ export default function WalletsPage() {
                 </p>
               </div>
             ) : (
-              // Confirm with master password
               <div className="space-y-4">
-                <p className="text-sm text-fg-muted">
-                  Enter your master password to decrypt your private key and send this payment.
-                </p>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-fg-muted">From:</span>
+                    <span className="font-mono">{truncateAddress(sendWalletAddress)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-fg-muted">To:</span>
+                    <div className="text-right">
+                      <div className="font-semibold">{selectedRecipient?.name}</div>
+                      <div className="font-mono text-xs text-fg-muted">{truncateAddress(selectedRecipient?.walletAddress || "")}</div>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-fg-muted">Amount:</span>
+                    <span className="font-bold">{sendAmount} ETH</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-fg-muted">Network:</span>
+                    <span>{NETWORKS[sendNetwork].name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-fg-muted">Gas Fee:</span>
+                    <span className="text-xs text-fg-muted">~0.0001 ETH (estimated)</span>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1">Master Password</label>
                   <input
@@ -949,7 +1096,7 @@ export default function WalletsPage() {
                     {sending ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Confirm & Send"}
                   </button>
                   <button
-                    onClick={() => setSendStep("details")}
+                    onClick={() => setSendStep("select")}
                     className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   >
                     Back
@@ -990,7 +1137,7 @@ export default function WalletsPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-fg-muted">Event / Attendee</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-fg-muted">Recipient</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-fg-muted">Amount</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-fg-muted">Network</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-fg-muted">Status</th>
@@ -1002,8 +1149,8 @@ export default function WalletsPage() {
                     {transactions.map((tx) => (
                       <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                         <td className="px-4 py-3 text-sm">
-                          <div className="font-medium">{tx.eventTitle}</div>
-                          <div className="text-xs text-fg-muted">{tx.attendeeName}</div>
+                          <div className="font-medium">{tx.recipientName}</div>
+                          <div className="text-xs font-mono text-fg-muted">{truncateAddress(tx.recipient)}</div>
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">
                           {tx.amount} {tx.token}
