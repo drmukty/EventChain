@@ -26,6 +26,9 @@ export default function NftGalleryPage() {
   const { data: session, status } = useSession();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasWallet, setHasWallet] = useState(false);
+  const [checkingWallet, setCheckingWallet] = useState(true);
+  const [defaultWalletAddress, setDefaultWalletAddress] = useState<string | null>(null);
   const [mintingId, setMintingId] = useState<string | null>(null);
   const [showMintModal, setShowMintModal] = useState(false);
   const [masterPassword, setMasterPassword] = useState("");
@@ -34,19 +37,40 @@ export default function NftGalleryPage() {
   const [mintError, setMintError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const user = session?.user as any;
-  const hasWallet = !!(user?.wallets?.length);
+  useEffect(() => {
+    if (status === "loading") return;
+    loadNFTs();
+    checkWalletStatus();
+  }, [status]);
 
-  function load() {
+  const loadNFTs = () => {
+    setLoading(true);
     fetch("/api/me/nfts")
       .then((r) => r.json())
       .then((d) => setNfts(d.nfts ?? []))
       .finally(() => setLoading(false));
-  }
+  };
 
-  useEffect(load, []);
+  const checkWalletStatus = () => {
+    setCheckingWallet(true);
+    fetch("/api/user/wallets")
+      .then((r) => r.json())
+      .then((data) => {
+        const wallets = data.wallets || [];
+        setHasWallet(wallets.length > 0);
+        const defaultWallet = wallets.find((w: any) => w.isDefault);
+        setDefaultWalletAddress(defaultWallet?.address || null);
+      })
+      .catch(() => {
+        setHasWallet(false);
+        setDefaultWalletAddress(null);
+      })
+      .finally(() => setCheckingWallet(false));
+  };
 
   const openMintModal = (nftId: string) => {
+    // Refresh wallet status before showing modal
+    checkWalletStatus();
     setSelectedNftId(nftId);
     setMintTxHash(null);
     setMintError(null);
@@ -78,7 +102,7 @@ export default function NftGalleryPage() {
       }
       setMintTxHash(data.txHash);
       toast.success("NFT minted on-chain! 🎉");
-      load();
+      loadNFTs();
       setTimeout(() => {
         setShowMintModal(false);
         setMintTxHash(null);
@@ -101,7 +125,7 @@ export default function NftGalleryPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading) {
+  if (loading || checkingWallet) {
     return (
       <div className="mx-auto max-w-6xl px-6 py-16 text-center">
         <p className="text-fg-muted">Loading your badges...</p>
@@ -262,7 +286,10 @@ export default function NftGalleryPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Wallet</label>
                   <p className="text-sm font-mono bg-gray-50 dark:bg-gray-700 p-2 rounded break-all">
-                    {user?.wallets?.find((w: any) => w.isDefault)?.address || 'No default wallet'}
+                    {defaultWalletAddress ? truncateAddress(defaultWalletAddress) : 'No default wallet'}
+                  </p>
+                  <p className="text-xs text-fg-muted mt-1">
+                    This is your current default wallet. If you change it, the new one will be used for future mints.
                   </p>
                 </div>
                 <div>
