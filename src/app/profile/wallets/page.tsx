@@ -105,16 +105,13 @@ export default function WalletsPage() {
 
   // ─── Effects ─────────────────────────────────────────────────────────────
 
-  // Only fetch data if session exists and is authenticated
+  // ✅ ONLY redirect when session status is "unauthenticated" (not "loading")
   useEffect(() => {
     if (status === "loading") return;
 
     if (!session?.user) {
-      // If no session, redirect to login after a small delay to avoid flicker
-      const timer = setTimeout(() => {
-        router.push("/login");
-      }, 300);
-      return () => clearTimeout(timer);
+      router.push("/login");
+      return;
     }
 
     // Session exists, fetch data
@@ -129,7 +126,12 @@ export default function WalletsPage() {
     try {
       const res = await fetch("/api/user/wallets");
       if (!res.ok) {
-        // If 401, we let the main effect redirect; we just throw to show error
+        // ❌ NEVER redirect here — just show error
+        if (res.status === 401) {
+          toast.error("Session expired. Please login again.");
+          // Let the useEffect above handle the redirect
+          return;
+        }
         throw new Error("Failed to fetch wallets");
       }
       const data = await res.json();
@@ -168,7 +170,7 @@ export default function WalletsPage() {
         setEvents(data.events || []);
       }
     } catch {
-      toast.error("Failed to load events");
+      // Silent fail
     }
   };
 
@@ -212,7 +214,7 @@ export default function WalletsPage() {
     }
   };
 
-  // ─── Other functions (copy, setDefault, changeNetwork, etc.) ──────────
+  // ─── Other functions ──────────────────────────────────────────────────────
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -524,7 +526,7 @@ export default function WalletsPage() {
   const balance = activeWallet?.balances?.[selectedNetwork] || "0.0";
   const networkInfo = NETWORKS[selectedNetwork];
 
-  // Wait for session to be resolved
+  // ✅ Show loader while session is loading
   if (status === "loading") {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -533,8 +535,8 @@ export default function WalletsPage() {
     );
   }
 
+  // ✅ Redirect to login if no session (this is the ONLY place we redirect)
   if (!session?.user) {
-    // Not logged in, but we'll redirect in the effect
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -728,7 +730,8 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* ─── Rename Modal ────────────────────────────────────────────────────── */}
+      {/* ─── Modals ─────────────────────────────────────────────────────────── */}
+      {/* Rename Modal */}
       {showRenameModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
@@ -765,7 +768,7 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* ─── Create Wallet Modal ───────────────────────────────────────────── */}
+      {/* Create Wallet Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
@@ -874,7 +877,7 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* ─── Import Wallet Modal ────────────────────────────────────────────── */}
+      {/* Import Wallet Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6">
@@ -927,7 +930,7 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* ─── Receive Modal ───────────────────────────────────────────────────── */}
+      {/* Receive Modal */}
       {showReceiveModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
@@ -953,7 +956,7 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* ─── Send Modal ─────────────────────────────────────────────────────── */}
+      {/* Send Modal */}
       {showSendModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
@@ -1178,7 +1181,7 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* ─── History Modal ───────────────────────────────────────────────────── */}
+      {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden p-6">
