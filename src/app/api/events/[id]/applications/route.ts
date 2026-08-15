@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -25,9 +26,33 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const applications = await prisma.application.findMany({
     where: { eventId, ...(status && { status: status as any }) },
-    include: { user: { select: { name: true, email: true, image: true, walletAddress: true } } },
+    include: {
+      user: {
+        select: {
+          name: true,
+          email: true,
+          image: true,
+          walletAddress: true,
+          // ✅ Include the user's default wallet
+          wallets: {
+            where: { isDefault: true },
+            take: 1,
+            select: { address: true },
+          },
+        },
+      },
+    },
     orderBy: { createdAt: "asc" },
   });
 
-  return NextResponse.json({ applications });
+  // ✅ Format response: add defaultWalletAddress
+  const formatted = applications.map((app) => ({
+    ...app,
+    user: {
+      ...app.user,
+      defaultWalletAddress: app.user.wallets[0]?.address || null,
+    },
+  }));
+
+  return NextResponse.json({ applications: formatted });
 }
