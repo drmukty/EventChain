@@ -9,7 +9,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
@@ -53,13 +53,12 @@ export const authOptions: NextAuthOptions = {
           avatarUrl: user.avatarUrl,
           telegramId: user.telegramId,
           walletAddress: user.walletAddress,
-        } as any;
+        };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // Initial sign in
       if (user) {
         token.id = (user as any).id;
         token.role = (user as any).role;
@@ -71,7 +70,6 @@ export const authOptions: NextAuthOptions = {
         token.image = user.image;
       }
 
-      // Update session when user updates profile
       if (trigger === "update" && session) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -110,18 +108,6 @@ export const authOptions: NextAuthOptions = {
         session.user.image = token.image as string | null;
       }
       return session;
-    },
-  },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-      },
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
