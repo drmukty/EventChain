@@ -105,16 +105,16 @@ export default function WalletsPage() {
 
   // ─── Effects ─────────────────────────────────────────────────────────────
 
-  // ✅ ONLY redirect when session status is "unauthenticated" (not "loading")
   useEffect(() => {
     if (status === "loading") return;
 
     if (!session?.user) {
-      router.push("/login");
-      return;
+      const timer = setTimeout(() => {
+        router.push("/login");
+      }, 300);
+      return () => clearTimeout(timer);
     }
 
-    // Session exists, fetch data
     fetchWallets();
     fetchEvents();
   }, [status, session]);
@@ -126,10 +126,8 @@ export default function WalletsPage() {
     try {
       const res = await fetch("/api/user/wallets");
       if (!res.ok) {
-        // ❌ NEVER redirect here — just show error
         if (res.status === 401) {
           toast.error("Session expired. Please login again.");
-          // Let the useEffect above handle the redirect
           return;
         }
         throw new Error("Failed to fetch wallets");
@@ -188,7 +186,8 @@ export default function WalletsPage() {
           id: a.id,
           name: a.user.name || a.user.email,
           email: a.user.email,
-          walletAddress: a.user.walletAddress || null,
+          // 🔥 FIX: use defaultWalletAddress from API, fallback to legacy walletAddress
+          walletAddress: a.user.defaultWalletAddress || a.user.walletAddress || null,
         }));
       setAttendees(attendees);
       setSelectedAttendeeId("");
@@ -526,7 +525,6 @@ export default function WalletsPage() {
   const balance = activeWallet?.balances?.[selectedNetwork] || "0.0";
   const networkInfo = NETWORKS[selectedNetwork];
 
-  // ✅ Show loader while session is loading
   if (status === "loading") {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -535,7 +533,6 @@ export default function WalletsPage() {
     );
   }
 
-  // ✅ Redirect to login if no session (this is the ONLY place we redirect)
   if (!session?.user) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -731,6 +728,7 @@ export default function WalletsPage() {
       )}
 
       {/* ─── Modals ─────────────────────────────────────────────────────────── */}
+
       {/* Rename Modal */}
       {showRenameModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
