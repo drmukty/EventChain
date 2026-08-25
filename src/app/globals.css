@@ -7,17 +7,28 @@
   --font-body: "General Sans", ui-sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace;
 
-  /* color tokens: store as space-separated RGB so we can use rgb(var(--...)) */
-  --bg: 250 251 255;
-  --bg-elevated: 255 255 255;
-  --fg: 8 10 18;
-  --fg-muted: 90 96 115;
-  --border: 226 229 240;
+  /* NEO-BRUTALIST LIGHT MODE TOKENS */
+  /* Warm Cream + Black + Electric Blue */
+  
+  /* Backgrounds */
+  --bg: 245 241 232;           /* Warm cream #F5F1E8 */
+  --bg-elevated: 255 253 247;  /* Off-white surface #FFFDF7 */
+  
+  /* Text */
+  --fg: 17 17 17;              /* Deep black #111111 */
+  --fg-muted: 102 102 102;     /* Muted gray #666666 */
+  
+  /* Borders */
+  --border: 17 17 17;           /* Strong black borders #111111 */
+  
+  /* Electric Blue */
+  --blue-primary: 23 23 255;    /* Electric Blue #1717FF */
+  --blue-bright: 77 77 255;     /* Bright Blue #4D4DFF */
 
   /* design tokens */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 
   --space-xs: 4px;
   --space-sm: 8px;
@@ -25,23 +36,38 @@
   --space-lg: 24px;
   --space-xl: 48px;
 
-  --elevation-1: 0 1px 2px rgba(2,6,23,0.04), 0 1px 3px rgba(2,6,23,0.06);
-  --elevation-2: 0 6px 18px rgba(2,6,23,0.06);
-
-  --glass-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  /* Shadows & Elevation */
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.12);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  /* Blue Glow Effects */
+  --glow-sm: 0 0 8px rgba(23, 23, 255, 0.25);
+  --glow-md: 0 0 18px rgba(23, 23, 255, 0.30);
+  --glow-lg: 0 0 24px rgba(23, 23, 255, 0.35);
 }
 
 .dark {
-  --bg: 5 7 13;
-  --bg-elevated: 11 14 23;
-  --fg: 238 241 247;
-  --fg-muted: 148 156 178;
-  --border: 28 33 53;
+  /* NEO-BRUTALIST DARK MODE TOKENS */
+  /* Deep Black + White Text + Electric Blue */
+  
+  /* Backgrounds */
+  --bg: 11 14 23;              /* Deep black #0B0E17 */
+  --bg-elevated: 19 23 38;     /* Dark navy #131726 */
+  
+  /* Text */
+  --fg: 255 255 255;           /* White text */
+  --fg-muted: 160 160 160;     /* Light gray #A0A0A0 */
+  
+  /* Borders */
+  --border: 42 46 62;           /* Subtle borders #2A2E3E */
+  
+  /* Electric Blue (unchanged in dark mode) */
+  --blue-primary: 23 23 255;
+  --blue-bright: 77 77 255;
 
-  --elevation-1: 0 6px 12px rgba(3,7,18,0.6);
-  --elevation-2: 0 18px 40px rgba(2,6,23,0.75);
-
-  --glass-gradient: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  /* Elevation in dark mode */
+  --elevation-1: 0 2px 8px rgba(0, 0, 0, 0.30);
+  --elevation-2: 0 8px 24px rgba(0, 0, 0, 0.40);
 }
 
 /* body baseline */
@@ -53,6 +79,7 @@ body {
   color: rgb(var(--fg));
   transition: background-color 0.35s ease, color 0.35s ease;
   line-height: 1.45;
+  font-size: 16px;
 }
 
 /* typography */
@@ -60,18 +87,36 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   color: rgb(var(--fg));
   margin-top: 0;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-md);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-h1 { font-size: 2.125rem; line-height: 1.05; }
-h2 { font-size: 1.6rem; }
-h3 { font-size: 1.25rem; }
+h1 { font-size: 2.5rem; line-height: 1.1; }
+h2 { font-size: 2rem; line-height: 1.2; }
+h3 { font-size: 1.5rem; line-height: 1.3; }
+h4 { font-size: 1.25rem; line-height: 1.4; }
 
-p { color: rgb(var(--fg)); margin-bottom: var(--space-md); }
+p {
+  color: rgb(var(--fg));
+  margin-bottom: var(--space-md);
+  line-height: 1.6;
+}
 
-a { color: inherit; text-decoration: underline; text-decoration-color: rgba(0,82,255,0.15); }
+/* Links with electric blue underline */
+a {
+  color: rgb(var(--blue-primary));
+  text-decoration: none;
+  position: relative;
+  transition: all 150ms ease;
+}
 
-/* improved container spacing */
+a:hover {
+  color: rgb(var(--blue-bright));
+  text-decoration: underline;
+}
+
+/* Improved container spacing */
 .main-container {
   max-width: 1200px;
   margin-left: auto;
@@ -80,25 +125,79 @@ a { color: inherit; text-decoration: underline; text-decoration-color: rgba(0,82
   padding-right: var(--space-md);
 }
 
-/* glass panel helper */
-.glass-panel {
-  background: var(--glass-gradient);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: var(--radius-md);
-}
-
-/* subtle elevation */
+/* Neo-brutalist card with strong borders */
 .card {
   background: rgb(var(--bg-elevated));
-  border: 1px solid rgb(var(--border));
+  border: 2px solid rgb(var(--border));
   border-radius: var(--radius-md);
   box-shadow: var(--elevation-1);
+  transition: all 150ms ease;
 }
 
-/* selection */
-::selection { background: rgba(0,82,255,0.35); }
+.card:hover {
+  box-shadow: var(--elevation-2), var(--glow-sm);
+  border-color: rgb(var(--blue-primary));
+}
 
+/* Button base styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 150ms ease;
+  user-select: none;
+  font-size: 16px;
+  padding: 12px 24px;
+}
+
+.btn:focus {
+  outline: none;
+  box-shadow: 0 0 12px rgba(23, 23, 255, 0.35);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+/* Selection color */
+::selection {
+  background: rgba(23, 23, 255, 0.25);
+  color: rgb(var(--fg));
+}
+
+/* Input focus ring */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgb(var(--blue-primary));
+  box-shadow: 0 0 12px rgba(23, 23, 255, 0.20);
+}
+
+/* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  
+  body { font-size: 15px; }
+  
+  .main-container {
+    padding-left: var(--space-sm);
+    padding-right: var(--space-sm);
+  }
 }
